@@ -439,12 +439,12 @@ function App(): React.JSX.Element {
           'Actúa exclusivamente como reparador de JSON. La respuesta siguiente contiene una propuesta con sintaxis JSON defectuosa.',
           'Reconstruye el JSON conservando exactamente la intención y los datos que sí aparecen. No añadas cambios, campos, rutas ni recomendaciones nuevas.',
           'Devuelve únicamente un objeto JSON válido, sin Markdown ni explicaciones.',
-          'Estructura obligatoria: {"changes":[{"path":["claveRaiz","propiedad","campo"],"value": cualquierValorJSON,"reason":"texto","category":"mejora|reparación|contenido|coherencia|balance|sistema"},{"path":["claveRaiz","propiedad"],"remove":true,"reason":"texto","category":"reparación"}],"suggestions":[{"title":"texto","detail":"texto","priority":"alta|media|baja"}]}.',
+          'Estructura obligatoria: {"changes":[{"path":["claveRaiz","propiedad","campo"],"value":"valor JSON","reason":"texto","category":"mejora|reparación|contenido|coherencia|balance|sistema"},{"path":["claveRaiz","propiedad"],"remove":true,"reason":"texto","category":"reparación"}],"suggestions":[{"title":"texto","detail":"texto","priority":"alta|media|baja"}]}.',
           'IMPORTANTE: path siempre es un array de strings cerrado antes de value, remove, reason o category. value es un valor JSON independiente. No conviertas nombres de campos en propiedades de path sin incluirlos dentro del array.',
           'Si un cambio está demasiado dañado para reconstruirlo sin adivinar, omite ese cambio. Conserva las sugerencias que puedas recuperar.',
           'RESPUESTA ORIGINAL DEFECTUOSA:',
           proposalContent
-        ].join('\\n')
+        ].join('\n')
         const repairResult = await window.api.lmStudio.chat({
           model: selectedModel,
           prompt: repairPrompt,
