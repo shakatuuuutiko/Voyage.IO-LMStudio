@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import {
   buildWorldIndex,
+  getRelatedWorldNodes,
   listTrackedIssues,
   readWorldIndex,
   recordTrackedIssue,
@@ -11,7 +12,7 @@ import {
 
 export function registerLocalWorkspaceHandlers(): void {
   const channels = [
-    'workspace:build-index', 'workspace:read-index', 'workspace:search-index',
+    'workspace:build-index', 'workspace:read-index', 'workspace:search-index', 'workspace:related-nodes',
     'workspace:list-issues', 'workspace:record-issue', 'workspace:update-issue'
   ]
   channels.forEach((channel) => ipcMain.removeHandler(channel))
@@ -44,6 +45,17 @@ export function registerLocalWorkspaceHandlers(): void {
       return { success: true, results }
     } catch (error) {
       return { success: false, results: [], error: error instanceof Error ? error.message : 'Falló la búsqueda.' }
+    }
+  })
+
+  ipcMain.handle('workspace:related-nodes', async (_event, payload: { worldId: string; path: string; limit?: number }) => {
+    try {
+      if (!payload || typeof payload.worldId !== 'string' || typeof payload.path !== 'string') {
+        throw new Error('Se requiere el mundo y la ruta del nodo.')
+      }
+      return { success: true, results: await getRelatedWorldNodes(payload.worldId, payload.path, payload.limit) }
+    } catch (error) {
+      return { success: false, results: [], error: error instanceof Error ? error.message : 'No se pudieron consultar las relaciones.' }
     }
   })
 
