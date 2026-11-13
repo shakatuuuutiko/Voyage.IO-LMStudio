@@ -1026,3 +1026,13 @@ html, body, #root, .app-shell, .workspace {
 .proposal-diff-row code { color: #aebbd0; }
 .proposal-diff-before { color: #e6a0a0; }
 .proposal-diff-after { color: #9dd7ad; }
+
+
+.save-world-button {
+  border-color: #7c6a42;
+  color: #f0d39a;
+}
+.save-world-button:disabled {
+  border-color: #424957;
+  color: #8790a0;
+}
