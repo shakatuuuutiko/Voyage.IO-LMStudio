@@ -8,44 +8,52 @@ function getKeyFilePath(): string {
   return join(app.getPath('userData'), KEY_FILE_NAME)
 }
 
-function hasSecureStorageBackend(): boolean {
-  return (
-    safeStorage.isEncryptionAvailable() &&
-    safeStorage.getSelectedStorageBackend() !== 'basic_text'
-  )
+export async function isVoyageCredentialEncryptionAvailable(): Promise<boolean> {
+  return safeStorage.isAsyncEncryptionAvailable()
 }
 
-export function isVoyageCredentialEncryptionAvailable(): boolean {
-  return hasSecureStorageBackend()
-}
-
-export async function saveVoyageApiKey(apiKey: string): Promise<void> {
-  if (!hasSecureStorageBackend()) {
-    throw new Error(
-      'El almacenamiento cifrado del sistema no está disponible. No se guardará la API Key.'
-    )
-  }
-
-  const encrypted = safeStorage.encryptString(apiKey).toString('base64')
+async function writeEncryptedKey(encrypted: Buffer): Promise<void> {
   const directory = app.getPath('userData')
   const filePath = getKeyFilePath()
   const temporaryPath = `${filePath}.tmp`
 
   await mkdir(directory, { recursive: true })
-  await writeFile(temporaryPath, encrypted, { encoding: 'utf8', mode: 0o600 })
+  await writeFile(temporaryPath, encrypted.toString('base64'), {
+    encoding: 'utf8',
+    mode: 0o600
+  })
   await rename(temporaryPath, filePath)
 }
 
+export async function saveVoyageApiKey(apiKey: string): Promise<void> {
+  if (!(await isVoyageCredentialEncryptionAvailable())) {
+    throw new Error(
+      'El almacenamiento cifrado del sistema no está disponible. No se guardará la API Key.'
+    )
+  }
+
+  const encrypted = await safeStorage.encryptStringAsync(apiKey)
+  await writeEncryptedKey(encrypted)
+}
+
 export async function readVoyageApiKey(): Promise<string | null> {
-  if (!hasSecureStorageBackend()) {
+  if (!(await isVoyageCredentialEncryptionAvailable())) {
     throw new Error('El almacenamiento cifrado del sistema no está disponible.')
   }
 
   try {
-    const encrypted = await readFile(getKeyFilePath(), 'utf8')
-    if (!encrypted.trim()) return null
+    const encryptedText = await readFile(getKeyFilePath(), 'utf8')
+    if (!encryptedText.trim()) return null
 
-    return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
+    const encrypted = Buffer.from(encryptedText, 'base64')
+    const decrypted = await safeStorage.decryptStringAsync(encrypted)
+
+    if (decrypted.shouldReEncrypt) {
+      const refreshed = await safeStorage.encryptStringAsync(decrypted.result)
+      await writeEncryptedKey(refreshed)
+    }
+
+    return decrypted.result
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return null
