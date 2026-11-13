@@ -493,9 +493,12 @@ function App(): React.JSX.Element {
   }
 
   async function showNodeRelations(path: string): Promise<void> {
+    setRelatedResults([])
     const result = await window.api.workspace.relatedNodes({ worldId: selectedWorldId, paths: [path], limit: 60 })
-    if (result.success) setRelatedResults(result.results)
-    else setWorkspaceNotice(result.error || 'No se pudieron consultar las relaciones.')
+    if (result.success) {
+      setRelatedResults(result.results)
+      setWorkspaceNotice(result.results.length ? '' : 'No se encontraron relaciones por coincidencia exacta para esta ruta.')
+    } else setWorkspaceNotice(result.error || 'No se pudieron consultar las relaciones.')
   }
 
   async function changeIssueStatus(issueId: string, status: 'investigating' | 'fixed-pending-validation' | 'resolved' | 'false-positive'): Promise<void> {
