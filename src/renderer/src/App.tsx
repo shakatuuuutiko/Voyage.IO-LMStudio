@@ -739,8 +739,9 @@ function App(): React.JSX.Element {
     const overlappingPaths = selectedChanges.filter((change, index) =>
       selectedChanges.some((other, otherIndex) => {
         if (index === otherIndex) return false
-        const sharedLength = Math.min(change.path.length, other.path.length)
-        return change.path.slice(0, sharedLength).every((part, partIndex) => part === other.path[partIndex])
+        if (change.path.length === other.path.length) return false
+        const shorterPath = change.path.length < other.path.length ? change.path : other.path
+        return shorterPath.every((part, partIndex) => part === (change.path.length < other.path.length ? other.path : change.path)[partIndex])
       })
     )
     if (overlappingPaths.length > 0) {
