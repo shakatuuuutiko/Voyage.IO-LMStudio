@@ -13,6 +13,8 @@ function App(): React.JSX.Element {
   const [voyageEncryptionAvailable, setVoyageEncryptionAvailable] = useState(false)
   const [voyageBusy, setVoyageBusy] = useState(false)
   const [voyageNotice, setVoyageNotice] = useState('')
+  const [worldListBusy, setWorldListBusy] = useState(false)
+  const [worldListOutput, setWorldListOutput] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
 
   async function loadModels(): Promise<void> {
@@ -97,6 +99,21 @@ function App(): React.JSX.Element {
       setVoyageNotice(error instanceof Error ? error.message : 'Error de conexión.')
     } finally {
       setVoyageBusy(false)
+    }
+  }
+
+  async function loadVoyageWorlds(): Promise<void> {
+    if (worldListBusy) return
+    setWorldListBusy(true)
+    setWorldListOutput('')
+    try {
+      const result = await window.api.voyage.listWorlds()
+      if (result.success) setWorldListOutput(JSON.stringify(result.worlds ?? null, null, 2))
+      else setWorldListOutput(result.error || 'No se pudo obtener la lista de mundos.')
+    } catch (error) {
+      setWorldListOutput(error instanceof Error ? error.message : 'Error al consultar los mundos.')
+    } finally {
+      setWorldListBusy(false)
     }
   }
 
@@ -274,6 +291,13 @@ function App(): React.JSX.Element {
               Eliminar API Key
             </button>
             {voyageNotice && <p className="helper" role="status">{voyageNotice}</p>}
+            <button className="secondary-button" onClick={() => void loadVoyageWorlds()} disabled={worldListBusy || !voyageConfigured}>
+              {worldListBusy ? 'Consultando mundos...' : 'Consultar mis mundos'}
+            </button>
+            {worldListOutput && <div className="world-list-inspector">
+              <div className="helper">RESPUESTA REAL DE VOYAGE (SOLO LECTURA)</div>
+              <pre>{worldListOutput}</pre>
+            </div>}
           </div>
         </aside>
 
