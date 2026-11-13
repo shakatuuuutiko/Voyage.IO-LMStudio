@@ -200,7 +200,7 @@ function App(): React.JSX.Element {
   const [indexBusy, setIndexBusy] = useState(false)
   const [indexQuery, setIndexQuery] = useState('')
   const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
-  const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number }>>([])
+  const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; source: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number }>>([])
   const [workspaceNotice, setWorkspaceNotice] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
   const proposalRequestInput = useRef<HTMLTextAreaElement>(null)
