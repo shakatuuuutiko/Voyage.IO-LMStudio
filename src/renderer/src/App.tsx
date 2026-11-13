@@ -1430,6 +1430,7 @@ function App(): React.JSX.Element {
                             <button className="secondary-button recommend-button" onClick={() => void generateWorldProposal('recommend')} disabled={proposalBusy || !selectedModel}>
                               {proposalBusy ? 'Analizando...' : 'Recomiéndame'}
                             </button>
+                            <p className="helper">Si no obtiene ninguna idea utilizable, VoyAgent reintentará automáticamente hasta 2 veces más. Si los 3 intentos fallan, guardará un informe con los motivos.</p>
                             {worldValidation && worldValidation.errors.length > 0 && (
                               <button className="secondary-button" onClick={() => void generateWorldProposal('repair')} disabled={proposalBusy || !selectedModel}>
                                 Proponer correcciones de validación
