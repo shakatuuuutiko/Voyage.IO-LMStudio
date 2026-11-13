@@ -7,6 +7,7 @@ Branch: `feature/voyage-creator-api`
 - Production-only base URL: `https://api.aidungeon.com/creator/v1`.
 - Main-process authenticated HTTP client with a 30-second timeout and structured HTTP error details.
 - Connection check uses `GET /worlds?page=0&type=world`. It does not assume undocumented response properties.
+- A read-only `GET /worlds/{shortId}` path is implemented in the main-process client and IPC bridge. It validates the documented `data.world` envelope and preserves the complete `initialGameState` and unknown world fields; it captures the `ETag` for a later conditional save.
 - Player API key is validated for the documented `sk-voyage-v1-` prefix and non-empty token.
 - Electron `safeStorage` encrypts the key before it is written under the app's user-data directory. Save and read operations both reject the `basic_text` backend.
 - The storage layer rejects unavailable encryption and Electron's `basic_text` backend.
@@ -56,6 +57,6 @@ If the API test returns 401 or 403, do not share the key. Report only the HTTP s
 
 ## Not yet implemented
 
-No world content is read or modified yet. The next stage depends on capturing real successful responses for `GET /worlds` and `GET /worlds/{shortId}`, including the actual ETag and envelope shape. The official OpenAPI does not define these response schemas fully, so this is a deliberate integration checkpoint.
+The read-only single-world download path is implemented, but it has not been tested against a live account. The next stage depends on capturing successful responses for `GET /worlds` and `GET /worlds/{shortId}`. The list response is undocumented in OpenAPI, and the single-world envelope is specified by the guide as `data.world`; a live response must confirm both envelope and ETag behavior before building the visible world browser or any edit/sync operation.
 
 No publication, unpublication, world replacement, revision restore, moderation, media upload, or other mutating Voyage operation is exposed by this phase.
