@@ -58,11 +58,41 @@ function parseWorldList(value: unknown): { worlds: VoyageWorldSummary[]; totalCo
 }
 
 interface ProposalChange {
-  key: string
+  path: string[]
   value: unknown
   previousValue: unknown
   existed: boolean
   reason: string
+  category: string
+}
+
+function readPath(root: unknown, path: string[]): { value: unknown; exists: boolean } {
+  let current: unknown = root
+  for (const segment of path) {
+    if (Array.isArray(current) && /^\\d+$/.test(segment)) {
+      const index = Number(segment)
+      if (index >= current.length) return { value: undefined, exists: false }
+      current = current[index]
+    } else if (isRecord(current) && Object.prototype.hasOwnProperty.call(current, segment)) {
+      current = current[segment]
+    } else return { value: undefined, exists: false }
+  }
+  return { value: current, exists: true }
+}
+
+function writePath(root: Record<string, unknown>, path: string[], value: unknown): Record<string, unknown> {
+  const next = JSON.parse(JSON.stringify(root)) as Record<string, unknown>
+  let current: unknown = next
+  for (const segment of path.slice(0, -1)) {
+    if (Array.isArray(current) && /^\\d+$/.test(segment)) current = current[Number(segment)]
+    else if (isRecord(current)) current = current[segment]
+    else throw new Error('La ruta de la propuesta dejó de existir en el borrador.')
+  }
+  const leaf = path[path.length - 1]
+  if (Array.isArray(current) && /^\\d+$/.test(leaf)) current[Number(leaf)] = value
+  else if (isRecord(current)) current[leaf] = value
+  else throw new Error('La ubicación de destino no es un objeto o array editable.')
+  return next
 }
 
 function formatDate(value?: string): string {
@@ -94,12 +124,11 @@ function App(): React.JSX.Element {
   const [selectedWorldJson, setSelectedWorldJson] = useState('')
   const [selectedWorldInitialGameState, setSelectedWorldInitialGameState] = useState<Record<string, unknown> | null>(null)
   const [selectedWorldDraft, setSelectedWorldDraft] = useState<Record<string, unknown> | null>(null)
-  const [proposalSectionKey, setProposalSectionKey] = useState('')
   const [proposalRequest, setProposalRequest] = useState('')
   const [proposalBusy, setProposalBusy] = useState(false)
   const [proposalError, setProposalError] = useState('')
   const [proposalRawResponse, setProposalRawResponse] = useState('')
-  const [proposalChanges, setProposalChanges] = useState<ProposalChange[]>([])
+  const [proposalChanges, setProposalChanges] = useState<ProposalChange[]>([])\n  const [proposalSuggestions, setProposalSuggestions] = useState<Array<{ title: string; detail: string; priority: string }>>([])
   const [worldReadBusy, setWorldReadBusy] = useState(false)
   const [worldValidationBusy, setWorldValidationBusy] = useState(false)
   const [worldValidation, setWorldValidation] = useState<{ valid: boolean; errors: Array<{ code: string; message: string; path: string }>; warnings: Array<{ code: string; message: string; path: string }>; requestId: string } | null>(null)
@@ -207,7 +236,6 @@ function App(): React.JSX.Element {
       setSelectedWorldJson('')
       setSelectedWorldInitialGameState(null)
       setSelectedWorldDraft(null)
-      setProposalSectionKey('')
       setProposalChanges([])
       setProposalError('')
       setWorldValidation(null)
@@ -229,7 +257,6 @@ function App(): React.JSX.Element {
     setSelectedWorldJson('')
     setSelectedWorldInitialGameState(null)
     setSelectedWorldDraft(null)
-    setProposalSectionKey('')
     setProposalChanges([])
     setProposalError('')
     setWorldValidation(null)
@@ -273,91 +300,80 @@ function App(): React.JSX.Element {
     }
   }
 
-  async function generateWorldProposal(): Promise<void> {
-    if (!selectedWorldDraft || !proposalSectionKey || !proposalRequest.trim() || !selectedModel || proposalBusy) return
-    const section = selectedWorldDraft[proposalSectionKey]
-    if (!isRecord(section)) {
-      setProposalError('La sección seleccionada ya no es un objeto editable.')
-      return
-    }
-
+  async function generateWorldProposal(mode: 'request' | 'recommend' | 'repair' = 'request'): Promise<void> {
+    if (!selectedWorldDraft || !selectedModel || proposalBusy) return
+    if (mode === 'request' && !proposalRequest.trim()) return
     setProposalBusy(true)
     setProposalError('')
     setProposalRawResponse('')
     setProposalChanges([])
+    setProposalSuggestions([])
     try {
+      const task = mode === 'recommend'
+        ? 'Analiza el mundo y recomienda entre 5 y 8 mejoras concretas y prioritarias: reparaciones, coherencia, contenido, profundidad, sistemas, balance y oportunidades de expansión. No inventes funciones que el esquema no admita.'
+        : mode === 'repair'
+          ? 'Corrige los errores de validación indicados usando solo rutas y estructuras compatibles con el GameState actual. Si un problema no puede corregirse con el documento disponible, explícalo en una sugerencia y no inventes campos.'
+          : 'Implementa la intención del usuario mediante cambios concretos en cualquier sección pertinente. Decide dónde corresponde cada cambio; no estás limitado a una sección. Si la función no puede expresarse con el GameState disponible, explica la limitación en suggestions.'
+      const validationContext = worldValidation
+        ? JSON.stringify({ errors: worldValidation.errors, warnings: worldValidation.warnings })
+        : 'Sin resultados de validación.'
       const instruction = [
-        'Eres un asistente que propone cambios para un mundo de Voyage Creator Studio.',
-        'Devuelve exclusivamente un objeto JSON válido, sin Markdown ni bloques de código.',
-        'Formato exacto: {"changes":[{"key":"nombreDePropiedad","value":"valor propuesto","reason":"motivo breve"}]}. El campo value puede ser string, número, booleano, array, objeto o null según el tipo de dato esperado.',
-        'Solo puedes modificar propiedades directas del objeto de sección proporcionado. No devuelvas rutas, operaciones, código ni propiedades fuera de esa sección.',
-        'No incluyas la clave "__proto__", "prototype" ni "constructor". No inventes propiedades de estructura del mundo si no son necesarias.',
-        'Máximo 20 cambios. Si no hay cambios necesarios, devuelve {"changes":[]}.',
+        'Eres un arquitecto experto en Voyage Creator Studio y en el GameState del mundo proporcionado.',
+        'Devuelve exclusivamente JSON válido, sin Markdown.',
+        'Formato exacto: {"changes":[{"path":["seccion","propiedad","subpropiedad"],"value":"valor","reason":"justificación","category":"mejora|reparación|contenido|coherencia|balance|sistema"}],"suggestions":[{"title":"título","detail":"explicación","priority":"alta|media|baja"}]}.',
+        'Cada path debe señalar una ubicación real. El padre de cada ruta debe existir en el GameState. Solo añade una propiedad hoja cuando el propio esquema o los datos existentes demuestren que está admitida. No inventes propiedades raíz, campos de configuración ni identificadores.',
+        'Conserva tipos, estructuras, IDs y convenciones. No conviertas etiquetas descriptivas en IDs. Para arrays usa índices numéricos como segmentos. No reemplaces arrays completos salvo necesidad demostrable.',
+        'No uses segmentos "__proto__", "prototype" ni "constructor". Máximo 30 cambios y 8 sugerencias. Evita duplicar cambios ya presentes. Si no hay cambios seguros, devuelve changes vacío y explica por qué en suggestions.',
+        'Prioriza propuestas pequeñas, coherentes y verificables. No afirmes que una propiedad es válida si no puedes deducirlo del GameState.',
         '',
-        'SECCIÓN:',
-        proposalSectionKey,
-        'CONTENIDO ACTUAL:',
-        JSON.stringify(section),
+        'TAREA:', task,
+        mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + proposalRequest.trim() : '',
+        mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
         '',
-        'CAMBIOS SOLICITADOS:',
-        proposalRequest.trim()
-      ].join('\n')
-
-      const result = await window.api.lmStudio.chat({
-        model: selectedModel,
-        prompt: instruction,
-        maxTokens,
-        jsonMode: true
-      })
-      if (!result.success || !result.content) {
-        throw new Error(result.error || 'El modelo no devolvió una propuesta.')
-      }
+        'GAMESTATE COMPLETO ACTUAL (JSON compacto):',
+        JSON.stringify(selectedWorldDraft)
+      ].filter(Boolean).join('\n')
+      const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens, jsonMode: true })
+      if (!result.success || !result.content) throw new Error(result.error || 'El modelo no devolvió una propuesta.')
       setProposalRawResponse(result.content)
-      if (result.finishReason === 'length') {
-        throw new Error('LM Studio truncó la respuesta al alcanzar el límite de tokens. Aumenta el presupuesto de tokens e inténtalo de nuevo.')
-      }
-
+      if (result.finishReason === 'length') throw new Error('LM Studio truncó la respuesta. Aumenta el presupuesto de tokens e inténtalo de nuevo.')
       let parsed: unknown
-      try {
-        parsed = JSON.parse(result.content.trim())
-      } catch {
-        const candidate = extractJsonObject(result.content)
-        try {
-          parsed = JSON.parse(candidate)
-        } catch (parseError) {
-          const detail = parseError instanceof Error ? parseError.message : 'error de sintaxis desconocido'
-          throw new Error(`LM Studio devolvió JSON inválido: ${detail}. La propuesta fue descartada; no se aplicó ningún cambio.`)
-        }
+      try { parsed = JSON.parse(result.content.trim()) }
+      catch { parsed = JSON.parse(extractJsonObject(result.content)) }
+      if (!isRecord(parsed) || !Array.isArray(parsed.changes) || parsed.changes.length > 30) {
+        throw new Error('La respuesta no respeta el formato esperado (changes, máximo 30).')
       }
-      if (!isRecord(parsed) || !Array.isArray(parsed.changes) || parsed.changes.length > 20) {
-        throw new Error('La respuesta no respeta el formato de propuesta esperado (changes, máximo 20).')
-      }
-
       const changes = parsed.changes.map((item, index): ProposalChange => {
-        if (
-          !isRecord(item) ||
-          typeof item.key !== 'string' ||
-          !item.key.trim() ||
-          ['__proto__', 'prototype', 'constructor'].includes(item.key) ||
-          typeof item.reason !== 'string' ||
-          !Object.prototype.hasOwnProperty.call(item, 'value')
-        ) {
-          const shape = isRecord(item) ? Object.keys(item).join(', ') || 'objeto vacío' : typeof item
-          throw new Error(`El cambio ${index + 1} tiene una estructura no permitida. Campos recibidos: ${shape}. La respuesta original se muestra abajo.`)
+        if (!isRecord(item) || !Array.isArray(item.path) || item.path.length === 0 ||
+          !item.path.every((part) => typeof part === 'string' && part.length > 0) ||
+          item.path.some((part) => ['__proto__', 'prototype', 'constructor'].includes(part)) ||
+          typeof item.reason !== 'string' || !Object.prototype.hasOwnProperty.call(item, 'value')) {
+          throw new Error(`El cambio ${index + 1} tiene una ruta o estructura no permitida. La respuesta original se muestra abajo.`)
         }
-        return {
-          key: item.key,
-          value: item.value,
-          previousValue: section[item.key],
-          existed: Object.prototype.hasOwnProperty.call(section, item.key),
-          reason: item.reason
+        const path = item.path as string[]
+        const parent = readPath(selectedWorldDraft, path.slice(0, -1))
+        if (!parent.exists || (!isRecord(parent.value) && !Array.isArray(parent.value))) {
+          throw new Error(`La ruta del cambio ${index + 1} apunta a una sección inexistente o no editable: ${path.join('.')}`)
         }
+        const current = readPath(selectedWorldDraft, path)
+        return { path, value: item.value, previousValue: current.value, existed: current.exists,
+          reason: item.reason, category: typeof item.category === 'string' ? item.category : 'modificación' }
       })
-      if (new Set(changes.map((change) => change.key)).size !== changes.length) {
-        throw new Error('La propuesta repite propiedades. Solicita una nueva propuesta sin claves duplicadas.')
-      }
+      const pathKeys = changes.map((change) => JSON.stringify(change.path))
+      if (new Set(pathKeys).size !== pathKeys.length) throw new Error('La propuesta repite rutas.')
       setProposalChanges(changes)
-      if (changes.length === 0) setProposalError('El modelo no propuso cambios para esta solicitud.')
+      const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions : []
+      setProposalSuggestions(suggestions.filter((item): item is Record<string, unknown> =>
+        isRecord(item) && typeof item.title === 'string' && typeof item.detail === 'string'
+      ).slice(0, 8).map((item) => ({
+        title: String(item.title), detail: String(item.detail),
+        priority: typeof item.priority === 'string' ? item.priority : 'media'
+      })))
+      if (changes.length === 0 && (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0)) {
+        setProposalError('El modelo no encontró cambios seguros ni recomendaciones.')
+      } else if (changes.length === 0) {
+        setProposalError('La IA generó recomendaciones, pero no encontró cambios que pueda representar de forma segura en el esquema actual.')
+      }
     } catch (error) {
       setProposalError(error instanceof Error ? error.message : 'No se pudo generar la propuesta.')
     } finally {
@@ -366,19 +382,18 @@ function App(): React.JSX.Element {
   }
 
   function applyProposalToDraft(): void {
-    if (!selectedWorldDraft || !proposalSectionKey || proposalChanges.length === 0) return
-    const section = selectedWorldDraft[proposalSectionKey]
-    if (!isRecord(section)) {
-      setProposalError('La sección seleccionada no es un objeto; no se aplicó ningún cambio.')
-      return
+    if (!selectedWorldDraft || proposalChanges.length === 0) return
+    try {
+      let next = selectedWorldDraft
+      for (const change of proposalChanges) next = writePath(next, change.path, change.value)
+      setSelectedWorldDraft(next)
+      setProposalChanges([])
+      setWorldValidation(null)
+      setWorldValidationError('')
+      setProposalError('Propuesta aplicada únicamente al borrador local en memoria. El mundo remoto no fue modificado.')
+    } catch (error) {
+      setProposalError(error instanceof Error ? error.message : 'No se pudo aplicar la propuesta.')
     }
-    const nextSection: Record<string, unknown> = { ...section }
-    for (const change of proposalChanges) nextSection[change.key] = change.value
-    setSelectedWorldDraft({ ...selectedWorldDraft, [proposalSectionKey]: nextSection })
-    setProposalChanges([])
-    setWorldValidation(null)
-    setWorldValidationError('')
-    setProposalError('Propuesta aplicada únicamente al borrador local en memoria. El mundo remoto no fue modificado.')
   }
 
   function discardDraftChanges(): void {
@@ -621,35 +636,23 @@ function App(): React.JSX.Element {
                               <strong>PROPUESTAS DE IA LOCAL</strong>
                               <span>BORRADOR EN MEMORIA</span>
                             </div>
-                            <p className="helper">Elige una sección del mundo. El modelo solo recibirá esa sección y podrá proponer cambios en sus propiedades directas.</p>
-                            <label htmlFor="proposal-section">Sección editable</label>
-                            <select
-                              id="proposal-section"
-                              value={proposalSectionKey}
-                              onChange={(event) => {
-                                setProposalSectionKey(event.target.value)
-                                setProposalChanges([])
-                                setProposalError('')
-                              }}
-                              disabled={proposalBusy || worldReadBusy}
-                            >
-                              <option value="">Selecciona una sección...</option>
-                              {Object.entries(selectedWorldDraft).filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1])).map(([key]) => (
-                                <option key={key} value={key}>{key}</option>
-                              ))}
-                            </select>
-                            <label htmlFor="proposal-request">Cambios que quieres solicitar</label>
-                            <textarea
-                              id="proposal-request"
-                              rows={4}
-                              value={proposalRequest}
+                            <p className="helper">Describe libremente el resultado que buscas. La IA analizará el GameState completo, decidirá qué secciones deben intervenir y propondrá cambios coordinados. También puedes pedir recomendaciones sin escribir una instrucción.</p>
+                            <label htmlFor="proposal-request">¿Qué quieres conseguir?</label>
+                            <textarea id="proposal-request" rows={4} value={proposalRequest}
                               onChange={(event) => setProposalRequest(event.target.value)}
-                              placeholder="Describe qué quieres cambiar en esta sección..."
-                              disabled={proposalBusy}
-                            />
-                            <button className="secondary-button" onClick={() => void generateWorldProposal()} disabled={proposalBusy || !selectedModel || !proposalSectionKey || !proposalRequest.trim()}>
-                              {proposalBusy ? 'Generando propuesta con LM Studio...' : 'Generar propuesta'}
+                              placeholder="Ej.: Quiero facciones más dinámicas, con territorios, jerarquías, relaciones y evolución..."
+                              disabled={proposalBusy} />
+                            <button className="secondary-button" onClick={() => void generateWorldProposal('request')} disabled={proposalBusy || !selectedModel || !proposalRequest.trim()}>
+                              {proposalBusy ? 'Analizando el mundo con LM Studio...' : 'Proponer cambios'}
                             </button>
+                            <button className="secondary-button recommend-button" onClick={() => void generateWorldProposal('recommend')} disabled={proposalBusy || !selectedModel}>
+                              {proposalBusy ? 'Analizando...' : 'Recomiéndame'}
+                            </button>
+                            {worldValidation && worldValidation.errors.length > 0 && (
+                              <button className="secondary-button" onClick={() => void generateWorldProposal('repair')} disabled={proposalBusy || !selectedModel}>
+                                Proponer correcciones de validación
+                              </button>
+                            )}
                             {proposalError && <p className="helper" role="status">{proposalError}</p>}
                             {proposalRawResponse && proposalError && (
                               <details className="proposal-raw-response">
@@ -657,12 +660,25 @@ function App(): React.JSX.Element {
                                 <pre>{proposalRawResponse}</pre>
                               </details>
                             )}
+                            {proposalSuggestions.length > 0 && (
+                              <div className="proposal-review">
+                                <strong>Recomendaciones de la IA · {proposalSuggestions.length}</strong>
+                                {proposalSuggestions.map((suggestion, index) => (
+                                  <div className="proposal-change" key={index}>
+                                    <strong>{suggestion.title}</strong>
+                                    <span className="helper">Prioridad: {suggestion.priority}</span>
+                                    <p>{suggestion.detail}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             {proposalChanges.length > 0 && (
                               <div className="proposal-review">
                                 <strong>Revisión de propuesta · {proposalChanges.length} cambios</strong>
                                 {proposalChanges.map((change) => (
-                                  <div className="proposal-change" key={change.key}>
-                                    <strong>{change.key}</strong>
+                                  <div className="proposal-change" key={JSON.stringify(change.path)}>
+                                    <strong>{change.path.join(' › ')}</strong>
+                                    <span className="helper">{change.category}</span>
                                     <p>{change.reason}</p>
                                     <span className="helper">Valor actual{change.existed ? '' : ' (propiedad nueva)'}</span>
                                     <pre>{change.existed ? JSON.stringify(change.previousValue, null, 2) : '— No existe actualmente —'}</pre>
@@ -671,7 +687,7 @@ function App(): React.JSX.Element {
                                   </div>
                                 ))}
                                 <button className="secondary-button" onClick={applyProposalToDraft}>Aplicar al borrador local</button>
-                                <button className="secondary-button" onClick={() => setProposalChanges([])}>Descartar propuesta</button>
+                                <button className="secondary-button" onClick={() => { setProposalChanges([]); setProposalSuggestions([]) }}>Descartar propuesta</button>
                               </div>
                             )}
                             <button className="secondary-button" onClick={discardDraftChanges} disabled={proposalBusy || worldValidationBusy}>Descartar todos los cambios del borrador</button>
