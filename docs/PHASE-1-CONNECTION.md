@@ -57,9 +57,21 @@ Use Node.js 22.12 or newer. The lockfile resolves Electron 44.11.3, whose declar
 
 If the API test returns 401 or 403, do not share the key. Report only the HTTP status and sanitized error text; the key may be invalid, revoked, missing the required scope, or the account may not have the required rollout access.
 
-## Not yet implemented
+## Live list schema confirmed
 
-The read-only single-world download path is implemented, but it has not been tested against a live account. The next stage depends on capturing successful responses for `GET /worlds` and `GET /worlds/{shortId}`. The list response is undocumented in OpenAPI, and the single-world envelope is specified by the guide as `data.world`; a live response must confirm both envelope and ETag behavior before building the visible world browser or any edit/sync operation.
+A successful account response for `GET /worlds?page=0&type=world` confirmed this envelope:
+
+- `data.totalCount`: total number of matching worlds.
+- `data.worlds`: array of world summaries.
+- `requestId`: request correlation identifier.
+
+Observed summary fields include `id`, `shortId`, `title`, `description`, `advancedDescription`, `image`, `createdAt`, `updatedAt`, `editedAt`, `visibility`, `published`, `publishedAt`, `mods`, `tags`, `contentRating`, ownership/lock flags, and engagement counters. The renderer only depends on a validated minimum subset and leaves the original response intact in the main process.
+
+The renderer now parses `data.worlds` and displays a read-only list with cover, title, description, visibility, publication status, and mod count. Selecting **Abrir / leer mundo** calls the already implemented `GET /worlds/{shortId}` path and displays the returned document and ETag. No write operation is triggered by selecting or reading a world.
+
+## Remaining live verification
+
+The list endpoint has been tested against a live account. The single-world endpoint still needs a live test to confirm its exact response envelope, `initialGameState`, and ETag behavior before designing save/edit operations.
 
 No publication, unpublication, world replacement, revision restore, moderation, media upload, or other mutating Voyage operation is exposed by this phase.
 
