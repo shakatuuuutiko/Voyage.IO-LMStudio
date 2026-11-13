@@ -12,14 +12,23 @@ export interface WorldIndexNode {
   childCount: number
 }
 
+export interface WorldRelationship {
+  sourcePath: string
+  targetPath: string
+  matchedValue: string
+  kind: 'exact-name-reference'
+}
+
 export interface WorldIndex {
-  schemaVersion: 1
+  schemaVersion: 2
   worldId: string
   generatedAt: string
   nodeCount: number
   complete: boolean
   rootKeys: string[]
   nodes: WorldIndexNode[]
+  relationships: WorldRelationship[]
+  relationshipCount: number
 }
 
 export interface TrackedIssue {
@@ -78,8 +87,13 @@ function previewOf(value: unknown): string {
   return String(value)
 }
 
+function normalizeReference(value: string): string {
+  return value.trim().normalize('NFKC').toLocaleLowerCase()
+}
+
 export async function buildWorldIndex(worldId: string, gameState: Record<string, unknown>): Promise<WorldIndex> {
   const nodes: WorldIndexNode[] = []
+  const rawReferences: Array<{ sourcePath: string; targetName: string }> = []
   const stack: Array<{ value: unknown; path: string; key: string }> = [{ value: gameState, path: '', key: '$' }]
   const maxNodes = 150000
 
@@ -97,6 +111,12 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
       terms: terms.slice(0, 1200),
       childCount: children.length
     })
+    if (typeof value === 'string') {
+      const candidate = value.trim()
+      if (candidate.length >= 2 && candidate.length <= 120 && !/[\r\n]/.test(candidate) && !/^https?:\/\//i.test(candidate)) {
+        rawReferences.push({ sourcePath: current.path, targetName: normalizeReference(candidate) })
+      }
+    }
     for (let index = children.length - 1; index >= 0; index -= 1) {
       const [key, child] = children[index]
       const escaped = key.replace(/~/g, '~0').replace(/\//g, '~1')
@@ -104,14 +124,46 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
     }
   }
 
+  // Infer only unambiguous exact-name links from string values to named object/array entries.
+  // No fuzzy matching: uncertain references are deliberately omitted.
+  const targetsByName = new Map<string, string[]>()
+  for (const node of nodes) {
+    if ((node.kind !== 'object' && node.kind !== 'array') || !node.key || node.key === '$') continue
+    const name = normalizeReference(node.key)
+    if (name.length < 2) continue
+    const paths = targetsByName.get(name) || []
+    paths.push(node.path)
+    targetsByName.set(name, paths)
+  }
+  const relationships: WorldRelationship[] = []
+  const seenEdges = new Set<string>()
+  for (const reference of rawReferences) {
+    const targets = targetsByName.get(reference.targetName)
+    if (!targets || targets.length !== 1 || targets[0] === reference.sourcePath) continue
+    const targetPath = targets[0]
+    if (reference.sourcePath.startsWith(targetPath + '/') || targetPath.startsWith(reference.sourcePath + '/')) continue
+    const edgeKey = reference.sourcePath + '->' + targetPath
+    if (seenEdges.has(edgeKey)) continue
+    seenEdges.add(edgeKey)
+    relationships.push({
+      sourcePath: reference.sourcePath,
+      targetPath,
+      matchedValue: reference.targetName,
+      kind: 'exact-name-reference'
+    })
+    if (relationships.length >= 20000) break
+  }
+
   const index: WorldIndex = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     worldId: safeWorldId(worldId),
     generatedAt: new Date().toISOString(),
     nodeCount: nodes.length,
     complete: stack.length === 0,
     rootKeys: Object.keys(gameState),
-    nodes
+    nodes,
+    relationships,
+    relationshipCount: relationships.length
   }
   const directory = await workspaceDir(worldId)
   await atomicWrite(join(directory, 'world-index.json'), index)
@@ -120,13 +172,14 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
 
 export async function readWorldIndex(worldId: string): Promise<WorldIndex | null> {
   const directory = await workspaceDir(worldId)
-  return readJson<WorldIndex | null>(join(directory, 'world-index.json'), null)
+  const index = await readJson<WorldIndex | null>(join(directory, 'world-index.json'), null)
+  return index?.schemaVersion === 2 && Array.isArray(index.relationships) ? index : null
 }
 
 export async function searchWorldIndex(worldId: string, query: string, limit = 60): Promise<WorldIndexNode[]> {
   const index = await readWorldIndex(worldId)
   if (!index) return []
-  const terms = query.toLocaleLowerCase().split(/\\s+/).filter(Boolean)
+  const terms = query.toLocaleLowerCase().split(/\s+/).filter(Boolean)
   if (!terms.length) return []
   return index.nodes
     .map((node) => ({ node, score: terms.reduce((score, term) => score + (node.terms.includes(term) ? 1 : 0), 0) }))
@@ -134,6 +187,24 @@ export async function searchWorldIndex(worldId: string, query: string, limit = 6
     .sort((a, b) => b.score - a.score || a.node.path.localeCompare(b.node.path))
     .slice(0, Math.max(1, Math.min(200, limit)))
     .map((item) => item.node)
+}
+
+export async function getRelatedWorldNodes(worldId: string, path: string, limit = 40): Promise<Array<{ direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }>> {
+  const index = await readWorldIndex(worldId)
+  if (!index) return []
+  const nodeByPath = new Map(index.nodes.map((node) => [node.path, node]))
+  const results: Array<{ direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }> = []
+  for (const relationship of index.relationships) {
+    if (relationship.sourcePath === path) {
+      const node = nodeByPath.get(relationship.targetPath)
+      if (node) results.push({ direction: 'outgoing', node, relationship })
+    } else if (relationship.targetPath === path) {
+      const node = nodeByPath.get(relationship.sourcePath)
+      if (node) results.push({ direction: 'incoming', node, relationship })
+    }
+    if (results.length >= Math.max(1, Math.min(100, limit))) break
+  }
+  return results
 }
 
 export async function listTrackedIssues(worldId: string): Promise<TrackedIssue[]> {
