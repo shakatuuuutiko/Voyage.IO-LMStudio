@@ -14,7 +14,7 @@ This increment extends the per-world local index with a conservative relationshi
 - Matching uses Unicode NFKC normalization and case-insensitive comparison.
 - Ambiguous matches, fuzzy matches, partial phrases, and inferred relationships based only on similar words are omitted.
 - Self-links and ancestor/descendant links are excluded.
-- Edge count is capped at 20,000; the existing node cap remains 150,000.
+- Edge count is capped at 20,000; the existing node cap remains 150,000. If node traversal is truncated, graph inference is suppressed entirely because global name uniqueness cannot be established.
 - Edges retain source and target JSON Pointer paths and the matched text.
 
 ### Retrieval and UI
