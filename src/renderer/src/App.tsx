@@ -273,7 +273,7 @@ function App(): React.JSX.Element {
         '',
         'CAMBIOS SOLICITADOS:',
         proposalRequest.trim()
-      ].join('\\n')
+      ].join('\n')
 
       const result = await window.api.lmStudio.chat({
         model: selectedModel,
