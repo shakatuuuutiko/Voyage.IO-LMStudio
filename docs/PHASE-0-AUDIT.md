@@ -102,10 +102,10 @@ The uploaded `agent-guide.md` specifies **Player API keys**, the `sk-voyage-v1-`
 
 A first connection foundation is now present on this branch:
 
-- `src/main/services/voyage/client.ts`: production-host HTTP client and authenticated connection check via `GET /worlds?page=0&type=world`; no `Origin` header is sent.
+- `src/main/services/voyage/client.ts`: production-host HTTP client, authenticated connection check via `GET /worlds?page=0&type=world`, and read-only single-world download via `GET /worlds/{shortId}` using the guide's `data.world` envelope; no `Origin` header is sent.
 - `src/main/services/voyage/secure-store.ts`: encrypted key storage using Electron `safeStorage`; rejects unavailable or `basic_text` storage backends.
 - `src/main/ipc/voyage-handlers.ts`: status, save, test and clear handlers. The key is never returned through IPC.
-- `src/preload/index.ts` and `src/preload/index.d.ts`: typed bridge additions. Existing LM Studio methods are preserved.
+- `src/preload/index.ts` and `src/preload/index.d.ts`: typed bridge additions, including read-only world retrieval. Existing LM Studio methods are preserved.
 - `src/renderer/src/App.tsx`: password input, save/test/clear controls, and status feedback. The input is uncontrolled and cleared after successful save.
 - `src/main/index.ts`: explicitly declares `contextIsolation: true` and `nodeIntegration: false`; sandbox remains disabled pending a separate compatibility test.
 
