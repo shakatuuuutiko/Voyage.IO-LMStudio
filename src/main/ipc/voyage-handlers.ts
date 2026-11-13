@@ -45,7 +45,11 @@ export function registerVoyageIpcHandlers(): void {
       }
 
       const apiKey = value.trim()
-      if (!apiKey.startsWith(API_KEY_PREFIX)) {
+      if (
+        !apiKey.startsWith(API_KEY_PREFIX) ||
+        apiKey.length <= API_KEY_PREFIX.length ||
+        apiKey.length > 1024
+      ) {
         throw new Error('El formato no coincide con una Player API Key de Voyage.')
       }
 
