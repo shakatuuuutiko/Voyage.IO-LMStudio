@@ -652,7 +652,9 @@ function App(): React.JSX.Element {
       const task = mode === 'recommend'
         ? 'Analiza el mundo y recomienda entre 5 y 8 mejoras concretas y prioritarias: reparaciones, coherencia, contenido, profundidad, sistemas, balance y oportunidades de expansión. No inventes funciones que el esquema no admita.'
         : mode === 'repair'
-          ? 'Corrige los errores de validación indicados usando solo rutas y estructuras compatibles con el GameState actual. Si un problema no puede corregirse con el documento disponible, explícalo en una sugerencia y no inventes campos.'
+          ? targetIssue
+            ? 'Investiga y propone la corrección mínima para el problema registrado indicado. Usa su ruta exacta y el fragmento del borrador cuando estén disponibles. No modifiques datos no relacionados; si no hay evidencia suficiente, explica la limitación sin inventar campos.'
+            : 'Corrige los errores de validación indicados usando solo rutas y estructuras compatibles con el GameState actual. Si un problema no puede corregirse con el documento disponible, explícalo en una sugerencia y no inventes campos.'
           : 'Implementa la intención del usuario mediante cambios concretos en cualquier sección pertinente. Decide dónde corresponde cada cambio; no estás limitado a una sección. Si la función no puede expresarse con el GameState disponible, explica la limitación en suggestions.'
       const validationContext = worldValidation
         ? JSON.stringify({ errors: worldValidation.errors, warnings: worldValidation.warnings })
