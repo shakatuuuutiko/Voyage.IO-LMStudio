@@ -986,3 +986,43 @@ html, body, #root, .app-shell, .workspace {
   height: 14px;
   accent-color: #7668e8;
 }
+
+
+/* Proposal review: structured diffs and transparent heuristic risk labels. */
+.proposal-risk {
+  display: inline-flex;
+  width: fit-content;
+  margin: 6px 0 2px;
+  padding: 4px 8px;
+  border: 1px solid #596273;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.proposal-risk.alto { border-color: #b85b5b; color: #ffaaaa; }
+.proposal-risk.medio { border-color: #b18a48; color: #f2ce8b; }
+.proposal-risk.bajo { border-color: #568d70; color: #a6dfbb; }
+.proposal-diff {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #343b49;
+  border-radius: 7px;
+  background: #151922;
+}
+.proposal-diff > strong { font-size: 12px; color: #cbd2df; }
+.proposal-diff-row {
+  display: grid;
+  grid-template-columns: minmax(90px, .8fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding-top: 6px;
+  border-top: 1px solid #2b3240;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.proposal-diff-row code { color: #aebbd0; }
+.proposal-diff-before { color: #e6a0a0; }
+.proposal-diff-after { color: #9dd7ad; }
