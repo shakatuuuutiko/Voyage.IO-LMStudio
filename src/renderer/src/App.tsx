@@ -488,6 +488,7 @@ function App(): React.JSX.Element {
         'Elige entre 1 y 5 claves EXACTAS de la lista disponible. No inventes nombres. No selecciones todo.',
         'Claves disponibles: ' + JSON.stringify(sectionKeys),
         'TAREA: ' + task,
+        'ESTADO DEL ÍNDICE LOCAL: ' + (worldIndex?.complete ? 'completo' : 'parcial o no disponible') + '. El índice es una ayuda de recuperación, no sustituye al GameState.',
         'PISTAS DEL ÍNDICE LOCAL (rutas y fragmentos recuperados por búsqueda; prioriza estas secciones si son pertinentes): ' + JSON.stringify({ indexedRootKeys, matches: indexMatches }),
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
