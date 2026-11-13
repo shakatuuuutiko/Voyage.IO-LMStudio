@@ -48,12 +48,12 @@ export function registerLocalWorkspaceHandlers(): void {
     }
   })
 
-  ipcMain.handle('workspace:related-nodes', async (_event, payload: { worldId: string; path: string; limit?: number }) => {
+  ipcMain.handle('workspace:related-nodes', async (_event, payload: { worldId: string; paths: string[]; limit?: number }) => {
     try {
-      if (!payload || typeof payload.worldId !== 'string' || typeof payload.path !== 'string') {
-        throw new Error('Se requiere el mundo y la ruta del nodo.')
+      if (!payload || typeof payload.worldId !== 'string' || !Array.isArray(payload.paths) || payload.paths.some((path) => typeof path !== 'string')) {
+        throw new Error('Se requiere el mundo y una lista de rutas válida.')
       }
-      return { success: true, results: await getRelatedWorldNodes(payload.worldId, payload.path, payload.limit) }
+      return { success: true, results: await getRelatedWorldNodes(payload.worldId, payload.paths, payload.limit) }
     } catch (error) {
       return { success: false, results: [], error: error instanceof Error ? error.message : 'No se pudieron consultar las relaciones.' }
     }
