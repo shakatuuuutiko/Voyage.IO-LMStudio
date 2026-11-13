@@ -112,7 +112,10 @@ ipcMain.handle(
         const message = error instanceof Error ? error.message : ''
         // Algunos modelos/servidores compatibles con OpenAI no admiten response_format.
         // Reintentar una sola vez sin modo JSON evita que esa limitación bloquee la generación.
-        if (!payload.jsonMode || !message.includes('HTTP 400')) throw error
+        const lowerMessage = message.toLowerCase()
+        const unsupportedJsonMode = ['response_format', 'json_object', 'json mode', 'unsupported parameter', 'unrecognized request argument']
+          .some((term) => lowerMessage.includes(term))
+        if (!payload.jsonMode || !message.includes('HTTP 400') || !unsupportedJsonMode) throw error
 
         const compatibleBody = {
           model: requestBody.model,
