@@ -245,7 +245,7 @@ function App(): React.JSX.Element {
               disabled={voyageBusy || !voyageEncryptionAvailable}
             />
             <p className="helper">
-              La clave se cifra mediante el almacenamiento seguro del sistema operativo. No se muestra ni se devuelve a la interfaz después de guardarla.
+              Créala dentro de un mundo en Creator Studio: Settings → API keys → Generate. Copia la clave inmediatamente; Voyage solo la muestra una vez. Se cifra localmente al guardarla.
             </p>
             {!voyageEncryptionAvailable && (
               <p className="helper security-warning">
