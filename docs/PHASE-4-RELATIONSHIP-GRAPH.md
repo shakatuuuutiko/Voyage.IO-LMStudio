@@ -99,3 +99,21 @@ The save handler preserves unknown top-level world fields by spreading the downl
 ### Remote-write safety boundary
 
 The assistant has only added the capability to the application. No PUT request has been sent and no Voyage world has been modified by this implementation work. Runtime behavior, the server's ETag response after PUT, and conflict handling still require verification against a test world.
+
+
+## Issue-linked targeted repairs
+
+Each open or investigating tracked issue can now launch a dedicated repair proposal:
+
+- The issue's code, severity, message, source, occurrence count, and exact JSON Pointer path are passed as task context.
+- When the path exists in the current in-memory draft, its current value is retrieved directly and added to the model context.
+- The root section containing that path is prioritized even if the model's section selector omits it.
+- The prompt asks for the smallest justified correction and explicitly discourages unrelated edits.
+- Starting a repair moves the issue to **investigating**. Applying selected changes moves it to **fixed-pending-validation**, not resolved.
+- A subsequent Voyage validation can resolve a matching Voyage-origin issue when it no longer appears. User-reported or application issues remain pending for manual verification because a schema validation cannot prove an in-game behavior is fixed.
+
+The proposal remains subject to the existing path, type, stale-value, overlap, selection, and validation safeguards. No repair is applied automatically, and nothing is sent to Voyage until the separate remote-save action is explicitly confirmed.
+
+### Verification status
+
+The issue-linked repair implementation is committed on the feature branch. It has not yet been checked with the user's local TypeScript compiler or Electron runtime.
