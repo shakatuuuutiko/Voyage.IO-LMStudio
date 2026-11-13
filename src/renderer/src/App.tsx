@@ -236,7 +236,7 @@ function App(): React.JSX.Element {
   const [indexBusy, setIndexBusy] = useState(false)
   const [indexQuery, setIndexQuery] = useState('')
   const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
-  const [relatedResults, setRelatedResults] = useState<Array<{ direction: 'outgoing' | 'incoming'; node: { path: string; key: string; kind: string; preview: string; childCount: number }; relationship: { sourcePath: string; targetPath: string; matchedValue: string; kind: 'exact-name-reference' } }>>([])
+  const [relatedResults, setRelatedResults] = useState<Array<{ direction: 'outgoing' | 'incoming'; node: { path: string; key: string; kind: string; preview: string; childCount: number }; relationship: { sourcePath: string; targetPath: string; matchedValue: string; kind: 'exact-name-reference' }; matchedPath: string }>>([])
   const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; source: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number; history: Array<{ at: string; action: string; detail: string }> }>>([])
   const [workspaceNotice, setWorkspaceNotice] = useState('')
   const [issueReport, setIssueReport] = useState('')
@@ -493,7 +493,7 @@ function App(): React.JSX.Element {
   }
 
   async function showNodeRelations(path: string): Promise<void> {
-    const result = await window.api.workspace.relatedNodes({ worldId: selectedWorldId, path, limit: 60 })
+    const result = await window.api.workspace.relatedNodes({ worldId: selectedWorldId, paths: [path], limit: 60 })
     if (result.success) setRelatedResults(result.results)
     else setWorkspaceNotice(result.error || 'No se pudieron consultar las relaciones.')
   }
@@ -529,14 +529,15 @@ function App(): React.JSX.Element {
       const retrievalTerms = [...new Set((retrievalText.toLocaleLowerCase().match(/[\\p{L}\\p{N}_-]{4,}/gu) || []).slice(0, 10))].join(' ')
       const indexLookup = await window.api.workspace.searchIndex({ worldId: selectedWorldId, query: retrievalTerms, limit: 80 })
       const indexMatches = indexLookup.success ? indexLookup.results.slice(0, 35) : []
-      const relationLookups = await Promise.all(indexMatches.slice(0, 12).map((item) =>
-        window.api.workspace.relatedNodes({ worldId: selectedWorldId, path: item.path, limit: 8 })
-      ))
-      const relationshipMatches = relationLookups.flatMap((lookup) => lookup.success ? lookup.results.map((entry) => ({
+      const relationLookup = await window.api.workspace.relatedNodes({
+        worldId: selectedWorldId, paths: indexMatches.slice(0, 12).map((item) => item.path), limit: 80
+      })
+      const relationshipMatches = relationLookup.success ? relationLookup.results.map((entry) => ({
         path: entry.node.path, key: entry.node.key, kind: entry.node.kind,
         preview: entry.node.preview, childCount: entry.node.childCount,
-        direction: entry.direction, matchedValue: entry.relationship.matchedValue
-      })) : [])
+        direction: entry.direction, matchedValue: entry.relationship.matchedValue,
+        relatedFrom: entry.matchedPath
+      })) : []
       const contextNodes = [...new Map([...indexMatches, ...relationshipMatches].map((item) => [item.path, item])).values()]
       const retrievalBudget = { remaining: 18000 }
       const retrievedFragments = contextNodes.slice(0, 25).map((item) => {
