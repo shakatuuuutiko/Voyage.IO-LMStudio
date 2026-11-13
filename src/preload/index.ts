@@ -18,6 +18,11 @@ const api = {
     listIssues: (worldId: string) => ipcRenderer.invoke('workspace:list-issues', worldId),
     recordIssue: (payload: { worldId: string; source: 'voyage-validation' | 'lm-studio' | 'application' | 'user'; severity: 'error' | 'warning' | 'notice'; code: string; message: string; path?: string }) =>
       ipcRenderer.invoke('workspace:record-issue', payload),
+    createDraftSnapshot: (payload: { worldId: string; gameState: Record<string, unknown>; source: 'world-opened' | 'manual-checkpoint' | 'before-proposal' | 'proposal-applied' | 'draft-reset' | 'before-restore' | 'remote-saved'; label?: string }) =>
+      ipcRenderer.invoke('workspace:create-draft-snapshot', payload),
+    listDraftSnapshots: (worldId: string) => ipcRenderer.invoke('workspace:list-draft-snapshots', worldId),
+    readDraftSnapshot: (payload: { worldId: string; snapshotId: string }) =>
+      ipcRenderer.invoke('workspace:read-draft-snapshot', payload),
     updateIssue: (payload: { worldId: string; issueId: string; status: 'open' | 'investigating' | 'fixed-pending-validation' | 'resolved' | 'false-positive'; detail?: string }) =>
       ipcRenderer.invoke('workspace:update-issue', payload)
   },
