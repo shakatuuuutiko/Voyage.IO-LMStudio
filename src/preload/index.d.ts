@@ -37,6 +37,26 @@ interface VoyageWorldReadResult {
   error?: string
 }
 
+interface VoyageValidationIssue {
+  code: string
+  message: string
+  path: string
+}
+
+interface VoyageDraftValidation {
+  stage: 'draft'
+  valid: boolean
+  errors: VoyageValidationIssue[]
+  warnings: VoyageValidationIssue[]
+  requestId: string
+}
+
+interface VoyageDraftValidationResult {
+  success: boolean
+  validation?: VoyageDraftValidation
+  error?: string
+}
+
 interface VoyageOperationResult {
   success: boolean
   message?: string
@@ -65,6 +85,7 @@ interface AppAPI {
     testConnection: () => Promise<VoyageOperationResult>
     listWorlds: () => Promise<{ success: boolean; worlds?: unknown; error?: string }>
     readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
+    validateDraft: (initialGameState: Record<string, unknown>) => Promise<VoyageDraftValidationResult>
     clearApiKey: () => Promise<VoyageOperationResult>
   }
 }
