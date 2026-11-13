@@ -21,6 +21,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function extractJsonObject(raw: string): string {
+  const start = raw.indexOf('{')
+  if (start < 0) throw new Error('La respuesta no contiene ningún objeto JSON.')
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let index = start; index < raw.length; index += 1) {
+    const char = raw[index]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (char === '\\\\') escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+    if (char === '"') inString = true
+    else if (char === '{') depth += 1
+    else if (char === '}') {
+      depth -= 1
+      if (depth === 0) return raw.slice(start, index + 1)
+    }
+  }
+  throw new Error('El objeto JSON está incompleto o fue truncado antes de cerrar todas sus llaves.')
+}
+
 function parseWorldList(value: unknown): { worlds: VoyageWorldSummary[]; totalCount: number } {
   if (!isRecord(value) || !isRecord(value.data) || !Array.isArray(value.data.worlds)) {
     throw new Error('La respuesta de Voyage no coincide con el formato data.worlds. Se conserva la respuesta sin interpretarla.')
@@ -280,14 +304,28 @@ function App(): React.JSX.Element {
       const result = await window.api.lmStudio.chat({
         model: selectedModel,
         prompt: instruction,
-        maxTokens
+        maxTokens,
+        jsonMode: true
       })
       if (!result.success || !result.content) {
         throw new Error(result.error || 'El modelo no devolvió una propuesta.')
       }
+      if (result.finishReason === 'length') {
+        throw new Error('LM Studio truncó la respuesta al alcanzar el límite de tokens. Aumenta el presupuesto de tokens e inténtalo de nuevo.')
+      }
 
-      const raw = result.content.trim().replace(/^\x60{3}(?:json)?\s*/i, '').replace(/\s*\x60{3}$/i, '')
-      const parsed: unknown = JSON.parse(raw)
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(result.content.trim())
+      } catch {
+        const candidate = extractJsonObject(result.content)
+        try {
+          parsed = JSON.parse(candidate)
+        } catch (parseError) {
+          const detail = parseError instanceof Error ? parseError.message : 'error de sintaxis desconocido'
+          throw new Error(`LM Studio devolvió JSON inválido: ${detail}. La propuesta fue descartada; no se aplicó ningún cambio.`)
+        }
+      }
       if (!isRecord(parsed) || !Array.isArray(parsed.changes) || parsed.changes.length > 20) {
         throw new Error('La respuesta no respeta el formato de propuesta esperado (changes, máximo 20).')
       }
