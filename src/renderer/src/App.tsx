@@ -245,7 +245,7 @@ function App(): React.JSX.Element {
               disabled={voyageBusy || !voyageEncryptionAvailable}
             />
             <p className="helper">
-              La clave se cifra con el almacenamiento seguro de Windows. No se muestra ni se devuelve a la interfaz después de guardarla.
+              La clave se cifra mediante el almacenamiento seguro del sistema operativo. No se muestra ni se devuelve a la interfaz después de guardarla.
             </p>
             {!voyageEncryptionAvailable && (
               <p className="helper security-warning">
