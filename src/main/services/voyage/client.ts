@@ -179,7 +179,10 @@ export class VoyageCreatorClient {
       etag: response.headers.get('ETag')
     }
   }
-  async validateDraft(initialGameState: Record<string, unknown>): Promise<VoyageValidationResult> {
+
+  async validateDraft(
+    initialGameState: Record<string, unknown>
+  ): Promise<VoyageValidationResult> {
     const response = await this.request<unknown>('/validate', {
       method: 'POST',
       body: {
@@ -190,13 +193,14 @@ export class VoyageCreatorClient {
 
     const envelope = isRecord(response.data) ? response.data : null
     const data = envelope && isRecord(envelope.data) ? envelope.data : null
+    const requestId = envelope && typeof envelope.requestId === 'string' ? envelope.requestId : null
     if (
       !data ||
       typeof data.valid !== 'boolean' ||
       data.stage !== 'draft' ||
       !Array.isArray(data.errors) ||
       !Array.isArray(data.warnings) ||
-      typeof envelope?.requestId !== 'string'
+      !requestId
     ) {
       throw new Error('Voyage devolvió una respuesta de validación con un formato inesperado.')
     }
@@ -216,8 +220,7 @@ export class VoyageCreatorClient {
       valid: data.valid,
       errors: parseIssues(data.errors),
       warnings: parseIssues(data.warnings),
-      requestId: envelope.requestId
+      requestId
     }
   }
-
 }
