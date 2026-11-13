@@ -111,6 +111,23 @@ function writePath(root: Record<string, unknown>, path: string[], value: unknown
   return next
 }
 
+function summarizeForAI(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') return value.length > 160 ? value.slice(0, 160) + '… [texto abreviado]' : value
+  if (value === null || typeof value === 'number' || typeof value === 'boolean') return value
+  if (Array.isArray(value)) return value.slice(0, depth < 2 ? 3 : 2).map((item) => summarizeForAI(item, depth + 1))
+  if (isRecord(value)) {
+    const entries = Object.entries(value)
+    const result: Record<string, unknown> = {}
+    for (const [key, item] of entries.slice(0, depth < 2 ? 30 : 18)) {
+      result[key] = depth >= 4
+        ? (Array.isArray(item) ? '[array abreviado]' : isRecord(item) ? '[objeto abreviado]' : summarizeForAI(item, depth + 1))
+        : summarizeForAI(item, depth + 1)
+    }
+    if (entries.length > Object.keys(result).length) result.__summary_omitted_keys = entries.length - Object.keys(result).length
+    return result
+  }
+  return String(value)
+}
 function formatDate(value?: string): string {
   if (!value) return 'No disponible'
   const date = new Date(value)
@@ -293,7 +310,7 @@ function App(): React.JSX.Element {
       setProposalError('')
       setWorldValidation(null)
       setWorldValidationError('')
-      setSelectedWorldJson(JSON.stringify(result.world, null, 2))
+      setSelectedWorldJson('')
     } catch (error) {
       setSelectedWorldInitialGameState(null)
       setSelectedWorldDraft(null)
@@ -337,22 +354,48 @@ function App(): React.JSX.Element {
       const validationContext = worldValidation
         ? JSON.stringify({ errors: worldValidation.errors, warnings: worldValidation.warnings })
         : 'Sin resultados de validación.'
+      const sectionKeys = Object.keys(selectedWorldDraft)
+      const structuralSummary = summarizeForAI(selectedWorldDraft)
+      const selectionPrompt = [
+        'Eres un analista de mundos de Voyage Creator Studio.',
+        'Elige las secciones raíz más relevantes para esta tarea. Devuelve solo JSON: {"sections":["claveRaiz"],"reason":"motivo breve"}.',
+        'Elige entre 1 y 5 claves EXACTAS de la lista disponible. No inventes nombres. No selecciones todo.',
+        'Claves disponibles: ' + JSON.stringify(sectionKeys),
+        'TAREA: ' + task,
+        mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
+        mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
+        'RESUMEN ESTRUCTURAL DEL MUNDO: ' + JSON.stringify(structuralSummary)
+      ].filter(Boolean).join('\\n')
+      const selectionResult = await window.api.lmStudio.chat({
+        model: selectedModel, prompt: selectionPrompt, maxTokens: Math.min(2048, Number(maxTokens) || 4096), jsonMode: true
+      })
+      if (!selectionResult.success || !selectionResult.content) throw new Error(selectionResult.error || 'No se pudieron seleccionar las secciones del mundo.')
+      let selection: unknown
+      try { selection = JSON.parse(selectionResult.content.trim()) }
+      catch { selection = JSON.parse(extractJsonObject(selectionResult.content)) }
+      if (!isRecord(selection) || !Array.isArray(selection.sections)) throw new Error('El análisis inicial no devolvió una lista válida de secciones.')
+      const selectedKeys = [...new Set(selection.sections.filter((key): key is string => typeof key === 'string' && sectionKeys.includes(key)))].slice(0, 5)
+      if (selectedKeys.length === 0) throw new Error('La IA no seleccionó ninguna sección válida del mundo. Reintenta o formula una petición más concreta.')
+      const focusedWorld = Object.fromEntries(selectedKeys.map((key) => [key, summarizeForAI(selectedWorldDraft[key])]))
       const instruction = [
         'Eres un arquitecto experto en Voyage Creator Studio y en el GameState del mundo proporcionado.',
+        'Recibes un resumen estructural de las secciones elegidas, no el documento completo. No propongas cambios sobre datos que no aparecen.',
         'Devuelve exclusivamente JSON válido, sin Markdown.',
-        'Formato exacto: {"changes":[{"path":["seccion","propiedad"],"value":"valor","reason":"justificación","category":"mejora|reparación|contenido|coherencia|balance|sistema"},{"path":["seccion","campoObsoleto"],"remove":true,"reason":"...","category":"reparación"}],"suggestions":[{"title":"título","detail":"explicación","priority":"alta|media|baja"}]}. Usa value para reemplazar o añadir el valor hoja; usa remove:true para eliminar una propiedad incompatible u obsoleta.',
-        'Cada path debe señalar una ubicación real. El padre de cada ruta debe existir en el GameState. Solo añade una propiedad hoja cuando el propio esquema o los datos existentes demuestren que está admitida. No inventes propiedades raíz, campos de configuración ni identificadores.',
-        'Conserva tipos, estructuras, IDs y convenciones. No conviertas etiquetas descriptivas en IDs. Para arrays usa índices numéricos como segmentos. No reemplaces arrays completos salvo necesidad demostrable.',
-        'No uses segmentos "__proto__", "prototype" ni "constructor". Máximo 30 cambios y 8 sugerencias. Evita duplicar cambios ya presentes. Si no hay cambios seguros, devuelve changes vacío y explica por qué en suggestions.',
-        'Prioriza propuestas pequeñas, coherentes y verificables. No afirmes que una propiedad es válida si no puedes deducirlo del GameState.',
+        'Formato exacto: {"changes":[{"path":["seccion","propiedad"],"value":"valor","reason":"justificación","category":"mejora|reparación|contenido|coherencia|balance|sistema"},{"path":["seccion","campoObsoleto"],"remove":true,"reason":"...","category":"reparación"}],"suggestions":[{"title":"título","detail":"explicación","priority":"alta|media|baja"}]}.',
+        'Los paths deben señalar ubicaciones reales visibles en el resumen. No uses __summary_omitted_keys ni inventes campos. Los arrays muestran solo sus primeros elementos; usa únicamente índices visibles.',
+        'El padre de cada ruta debe existir en el GameState original. No inventes propiedades raíz, campos de configuración ni identificadores.',
+        'Conserva tipos, estructuras, IDs y convenciones. No conviertas etiquetas descriptivas en IDs. No reemplaces arrays completos salvo necesidad demostrable.',
+        'No uses segmentos "__proto__", "prototype" ni "constructor". Máximo 30 cambios y 8 sugerencias. Evita duplicar cambios ya presentes.',
+        'Prioriza propuestas pequeñas, coherentes y verificables. Si la información resumida no basta para proponer un cambio seguro, deja changes vacío y explica la limitación en suggestions.',
         '',
         'TAREA:', task,
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
-        '',
-        'GAMESTATE COMPLETO ACTUAL (JSON compacto):',
-        JSON.stringify(selectedWorldDraft)
-      ].filter(Boolean).join('\n')
+        'SECCIONES SELECCIONADAS: ' + selectedKeys.join(', '),
+        'RESUMEN DE LAS SECCIONES (las rutas corresponden a las claves originales):',
+        JSON.stringify(focusedWorld)
+      ].filter(Boolean).join('\\n')
+      const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       if (!result.success || !result.content) throw new Error(result.error || 'El modelo no devolvió una propuesta.')
       setProposalRawResponse(result.content)
@@ -653,7 +696,16 @@ function App(): React.JSX.Element {
                     <p className="helper">shortId: {selectedWorldId}</p>
                     <p className="helper">ETag: {selectedWorldEtag || 'Voyage no devolvió ETag'}</p>
                     {worldReadBusy && <p className="helper">Descargando documento completo...</p>}
-                    {selectedWorldJson && <pre>{selectedWorldJson}</pre>}
+                    {selectedWorldJson ? (
+                      <>
+                        <button className="secondary-button" onClick={() => setSelectedWorldJson('')}>Ocultar JSON del mundo</button>
+                        <pre className="world-json-inspector">{selectedWorldJson}</pre>
+                      </>
+                    ) : selectedWorldInitialGameState ? (
+                      <button className="secondary-button" onClick={() => setSelectedWorldJson(JSON.stringify(selectedWorldDraft || selectedWorldInitialGameState, null, 2))}>
+                        Mostrar GameState completo (solo al solicitarlo)
+                      </button>
+                    ) : null}
                     {selectedWorldInitialGameState && (
                       <div className="world-validation-panel">
                         {selectedWorldDraft && (
