@@ -82,7 +82,13 @@ Confirmed behavior:
 - In this world, `parties` is an object with one observed entry whose key is the empty string. That entry contains `quests`, `questTriggers`, `arcs`, and `narrativeEvents`. Preserve this key and its contents exactly; do not normalize it or assume it is invalid.
 - The JSON document parses successfully. The main-process client returns the parsed world object and ETag separately to the renderer.
 
-This confirms the read path and ETag capture for this tested world. It does **not** yet validate PUT/If-Match behavior, round-trip fidelity, validation endpoints, or any mutation workflow.
+This confirms the read path and ETag capture for this tested world. It does **not** validate PUT/If-Match behavior, round-trip fidelity, or any mutation workflow.
+
+## Draft validation integration
+
+The application now exposes **Validar borrador (sin guardar)** after a world has been read. It calls `POST /validate` with `{ stage: "draft", world: { initialGameState } }`, matching the checked-in OpenAPI `ValidationRequest` schema. The response is checked for `data.valid`, `data.stage`, `data.errors`, `data.warnings`, and `requestId`; issue entries are displayed with their code, message, and JSONPath. The call does not write or otherwise mutate the world. Publish-stage validation is intentionally not exposed in this phase.
+
+Live account validation still needs to be run locally. Record whether the endpoint accepts the captured world and inspect any returned errors/warnings before designing editable proposals. PUT/If-Match, save, restore, and publication remain unimplemented.
 
 No publication, unpublication, world replacement, revision restore, moderation, media upload, or other mutating Voyage operation is exposed by this phase.
 
