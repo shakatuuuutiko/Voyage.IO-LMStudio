@@ -695,16 +695,18 @@ function App(): React.JSX.Element {
                     <p className="helper">shortId: {selectedWorldId}</p>
                     <p className="helper">ETag: {selectedWorldEtag || 'Voyage no devolvió ETag'}</p>
                     {worldReadBusy && <p className="helper">Descargando documento completo...</p>}
-                    {selectedWorldJson ? (
-                      <>
-                        <button className="secondary-button" onClick={() => setSelectedWorldJson('')}>Ocultar JSON del mundo</button>
-                        <pre className="world-json-inspector">{selectedWorldJson}</pre>
-                      </>
-                    ) : selectedWorldInitialGameState ? (
-                      <button className="secondary-button" onClick={() => setSelectedWorldJson(JSON.stringify(selectedWorldDraft || selectedWorldInitialGameState, null, 2))}>
-                        Mostrar GameState completo (solo al solicitarlo)
-                      </button>
-                    ) : null}
+                    {selectedWorldInitialGameState ? (
+                      selectedWorldJson ? (
+                        <>
+                          <button className="secondary-button" onClick={() => setSelectedWorldJson('')}>Ocultar JSON del mundo</button>
+                          <pre className="world-json-inspector">{selectedWorldJson}</pre>
+                        </>
+                      ) : (
+                        <button className="secondary-button" onClick={() => setSelectedWorldJson(JSON.stringify(selectedWorldDraft || selectedWorldInitialGameState, null, 2))}>
+                          Mostrar GameState completo (solo al solicitarlo)
+                        </button>
+                      )
+                    ) : selectedWorldJson ? <p className="helper">{selectedWorldJson}</p> : null}
                     {selectedWorldInitialGameState && (
                       <div className="world-validation-panel">
                         {selectedWorldDraft && (
