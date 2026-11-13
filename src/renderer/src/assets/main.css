@@ -887,3 +887,30 @@ html, body, #root, .app-shell, .workspace {
     top: 86px;
   }
 }
+
+
+.manual-issue-report {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px dashed #454c60;
+  border-radius: 7px;
+  background: #11151e;
+}
+
+.manual-issue-report textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  padding: 9px;
+  border: 1px solid #363c4b;
+  border-radius: 6px;
+  color: #e8eaf0;
+  background: #0e1118;
+  font: inherit;
+  font-size: 11px;
+}
+
+.manual-issue-report .secondary-button {
+  margin: 0;
+}
