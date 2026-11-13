@@ -118,6 +118,39 @@ function writePath(root: Record<string, unknown>, path: string[], value: unknown
   return next
 }
 
+function collectArrayMetadata(
+  root: Record<string, unknown>,
+  rootKeys: string[],
+  maxEntries = 180
+): Array<{ path: string; length: number; visibleIndices: number[] }> {
+  const result: Array<{ path: string; length: number; visibleIndices: number[] }> = []
+  const stack: Array<{ value: unknown; path: string[]; depth: number }> =
+    rootKeys.map((key) => ({ value: root[key], path: [key], depth: 0 })).reverse()
+
+  while (stack.length > 0 && result.length < maxEntries) {
+    const current = stack.pop()!
+    if (current.depth >= 4 || current.value === null || typeof current.value !== 'object') continue
+    if (Array.isArray(current.value)) {
+      const visibleCount = current.depth < 2 ? 3 : 2
+      result.push({
+        path: '/' + current.path.map((part) => part.replace(/~/g, '~0').replace(/\\//g, '~1')).join('/'),
+        length: current.value.length,
+        visibleIndices: Array.from({ length: Math.min(current.value.length, visibleCount) }, (_, index) => index)
+      })
+      for (let index = Math.min(current.value.length, visibleCount) - 1; index >= 0; index -= 1) {
+        stack.push({ value: current.value[index], path: [...current.path, String(index)], depth: current.depth + 1 })
+      }
+    } else if (isRecord(current.value)) {
+      const entries = Object.entries(current.value).slice(0, current.depth === 0 ? 100 : current.depth === 1 ? 30 : 18)
+      for (let index = entries.length - 1; index >= 0; index -= 1) {
+        const [key, value] = entries[index]
+        stack.push({ value, path: [...current.path, key], depth: current.depth + 1 })
+      }
+    }
+  }
+  return result
+}
+
 function summarizeForAI(
   value: unknown,
   depth = 0,
@@ -538,7 +571,11 @@ function App(): React.JSX.Element {
         'SECCIONES SELECCIONADAS: ' + selectedKeys.join(', '),
         'FRAGMENTOS RECUPERADOS DEL ÍNDICE LOCAL (datos leídos desde las rutas exactas del borrador actual): ' + JSON.stringify(retrievedFragments.filter((item) => selectedKeys.includes(item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~') || '')).slice(0, 20)),
         'RESUMEN DE LAS SECCIONES (las rutas corresponden a las claves originales):',
-        JSON.stringify(focusedWorld)
+        JSON.stringify(focusedWorld),
+        'METADATOS EXACTOS DE ARRAYS EN LAS SECCIONES (path JSON Pointer, longitud real e índices realmente incluidos en el resumen): ' + JSON.stringify(collectArrayMetadata(selectedWorldDraft, selectedKeys)),
+        mode === 'recommend'
+          ? 'MODO RECOMENDACIÓN: solo puedes modificar propiedades que ya existen. No añadas propiedades nuevas ni posiciones nuevas a arrays. Las ideas que requieran ampliar el esquema deben ir en suggestions, no en changes.'
+          : 'MODO PETICIÓN: puedes proponer una propiedad nueva solo si la petición del usuario exige expresamente crearla y el padre existe. En arrays solo puedes reemplazar un índice existente o añadir exactamente al final; nunca saltar índices.'
       ].filter(Boolean).join('\n')
       const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       if (!result.success || !result.content) throw new Error(result.error || 'El modelo no devolvió una propuesta.')
@@ -600,7 +637,11 @@ function App(): React.JSX.Element {
           typeof item.reason !== 'string' || !Object.prototype.hasOwnProperty.call(item, 'value')) {
           return reject('estructura no permitida; se esperaba un JSON Pointer y value como propiedad independiente.')
         }
-        const path = item.path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
+        const rawSegments = item.path.slice(1).split('/')
+        if (rawSegments.some((part) => /~(?![01])/g.test(part))) {
+          return reject('JSON Pointer contiene un escape RFC 6901 inválido.')
+        }
+        const path = rawSegments.map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
         if (path.length === 0 || path.some((part) => !part || ['__proto__', 'prototype', 'constructor'].includes(part))) {
           return reject('JSON Pointer vacío o no permitido.')
         }
@@ -612,6 +653,9 @@ function App(): React.JSX.Element {
         const leaf = path[path.length - 1]
         if (Array.isArray(parent.value) && (!/^\d+$/.test(leaf) || Number(leaf) > parent.value.length)) {
           return reject(`índice de array no permitido: ${path.join('.')}`)
+        }
+        if (mode === 'recommend' && !current.exists) {
+          return reject(`recomendación descartada: no se permite inventar una propiedad o posición nueva (${path.join('.')}) sin una petición explícita`)
         }
         if (current.exists && getProposalValueKind(current.value) !== getProposalValueKind(item.value)) {
           ignoredTypeChanges += 1
