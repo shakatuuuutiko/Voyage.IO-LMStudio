@@ -202,6 +202,7 @@ function App(): React.JSX.Element {
   const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
   const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; source: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number }>>([])
   const [workspaceNotice, setWorkspaceNotice] = useState('')
+  const [issueReport, setIssueReport] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
   const proposalRequestInput = useRef<HTMLTextAreaElement>(null)
 
@@ -415,6 +416,22 @@ function App(): React.JSX.Element {
     } finally {
       setWorldValidationBusy(false)
     }
+  }
+
+  async function reportManualIssue(): Promise<void> {
+    if (!selectedWorldId || !issueReport.trim()) return
+    const result = await window.api.workspace.recordIssue({
+      worldId: selectedWorldId, source: 'user', severity: 'notice',
+      code: 'USER_REPORTED_ISSUE', message: issueReport.trim(), path: ''
+    })
+    if (!result.success) {
+      setWorkspaceNotice(result.error || 'No se pudo registrar el reporte.')
+      return
+    }
+    setIssueReport('')
+    const refreshed = await window.api.workspace.listIssues(selectedWorldId)
+    if (refreshed.success) setTrackedIssues(refreshed.issues)
+    setWorkspaceNotice('Reporte guardado en el registro local.')
   }
 
   async function searchWorldKnowledge(): Promise<void> {
@@ -894,7 +911,11 @@ function App(): React.JSX.Element {
                           <strong>REGISTRO DE PROBLEMAS Y REPARACIONES</strong>
                           <span>{trackedIssues.filter((issue) => issue.status !== 'resolved' && issue.status !== 'false-positive').length} ABIERTOS</span>
                         </div>
-                        <p className="helper">Los errores y warnings de validación se guardan localmente. Las reparaciones conservan historial; un problema que reaparece se vuelve a abrir.</p>
+                        <p className="helper">Los errores y warnings de validación se guardan localmente. También puedes registrar fallos fantasma o advertencias observadas durante una partida. Las reparaciones conservan historial; un problema que reaparece se vuelve a abrir.</p>
+                        <div className="manual-issue-report">
+                          <textarea rows={2} value={issueReport} onChange={(event) => setIssueReport(event.target.value)} placeholder="Describe un fallo observado, warning o comportamiento extraño..." />
+                          <button className="secondary-button" onClick={() => void reportManualIssue()} disabled={!issueReport.trim()}>Registrar problema observado</button>
+                        </div>
                         {trackedIssues.length === 0 ? <p className="helper">Todavía no hay problemas registrados. Ejecuta una validación para iniciar el seguimiento.</p> :
                           trackedIssues.slice(0, 30).map((issue) => <article className="tracked-issue" key={issue.id}>
                             <div className="world-browser-heading"><strong>{issue.code}</strong><span>{issue.severity.toUpperCase()} · {issue.status}</span></div>
