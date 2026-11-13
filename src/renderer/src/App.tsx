@@ -67,6 +67,13 @@ interface ProposalChange {
   remove: boolean
 }
 
+function getProposalValueKind(value: unknown): string {
+  if (value === null) return 'null'
+  if (Array.isArray(value)) return 'array'
+  if (isRecord(value)) return 'object'
+  return typeof value
+}
+
 function readPath(root: unknown, path: string[]): { value: unknown; exists: boolean } {
   let current: unknown = root
   for (const segment of path) {
@@ -181,6 +188,7 @@ function App(): React.JSX.Element {
   const [selectedWorldDraft, setSelectedWorldDraft] = useState<Record<string, unknown> | null>(null)
   const [proposalBusy, setProposalBusy] = useState(false)
   const [proposalError, setProposalError] = useState('')
+  const [proposalInfo, setProposalInfo] = useState('')
   const [proposalRawResponse, setProposalRawResponse] = useState('')
   const [proposalChanges, setProposalChanges] = useState<ProposalChange[]>([])
   const [proposalSuggestions, setProposalSuggestions] = useState<Array<{ title: string; detail: string; priority: string }>>([])
@@ -364,6 +372,7 @@ function App(): React.JSX.Element {
     if (mode === 'request' && !userRequest) return
     setProposalBusy(true)
     setProposalError('')
+    setProposalInfo('')
     setProposalRawResponse('')
     setProposalChanges([])
     setProposalSuggestions([])
@@ -487,12 +496,24 @@ function App(): React.JSX.Element {
         if (Array.isArray(parent.value) && (!/^\d+$/.test(leaf) || Number(leaf) > parent.value.length)) {
           throw new Error(`El cambio ${index + 1} contiene un índice de array no permitido: ${path.join('.')}`)
         }
+        if (current.exists && getProposalValueKind(current.value) !== getProposalValueKind(item.value)) return null
         return { path, value: item.value, previousValue: current.value, existed: current.exists,
           reason: item.reason, category: typeof item.category === 'string' ? item.category : 'modificación', remove: false }
       })
-      const pathKeys = changes.map((change) => JSON.stringify(change.path))
+      const typedChanges = changes.filter((change): change is ProposalChange => change !== null)
+      const effectiveChanges = typedChanges.filter((change) =>
+        !change.existed || JSON.stringify(change.previousValue) !== JSON.stringify(change.value)
+      )
+      const ignoredTypeChanges = changes.length - typedChanges.length
+      const ignoredNoOpChanges = typedChanges.length - effectiveChanges.length
+      const pathKeys = effectiveChanges.map((change) => JSON.stringify(change.path))
       if (new Set(pathKeys).size !== pathKeys.length) throw new Error('La propuesta repite rutas.')
-      setProposalChanges(changes)
+      setProposalChanges(effectiveChanges)
+      const ignoredMessages = [
+        ignoredTypeChanges ? `${ignoredTypeChanges} cambio(s) descartado(s) por incompatibilidad de tipo` : '',
+        ignoredNoOpChanges ? `${ignoredNoOpChanges} cambio(s) descartado(s) porque no modificaban el valor` : ''
+      ].filter(Boolean)
+      setProposalInfo(ignoredMessages.length ? 'Control automático: ' + ignoredMessages.join('; ') + '.' : '')
       const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions : []
       setProposalSuggestions(suggestions.filter((item): item is Record<string, unknown> =>
         isRecord(item) && typeof item.title === 'string' && typeof item.detail === 'string'
