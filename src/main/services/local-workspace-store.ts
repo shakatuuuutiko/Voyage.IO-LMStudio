@@ -17,6 +17,7 @@ export interface WorldIndex {
   worldId: string
   generatedAt: string
   nodeCount: number
+  complete: boolean
   rootKeys: string[]
   nodes: WorldIndexNode[]
 }
@@ -108,6 +109,7 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
     worldId: safeWorldId(worldId),
     generatedAt: new Date().toISOString(),
     nodeCount: nodes.length,
+    complete: stack.length === 0,
     rootKeys: Object.keys(gameState),
     nodes
   }
@@ -158,7 +160,7 @@ export async function recordTrackedIssue(input: {
   if (issue) {
     issue.lastSeenAt = now
     issue.occurrences += 1
-    if (issue.status === 'resolved' || issue.status === 'false-positive') issue.status = 'open'
+    if (issue.status !== 'open' && issue.status !== 'investigating') issue.status = 'open'
     issue.history.push({ at: now, action: 'detected-again', detail: 'El mismo problema volvió a detectarse.' })
   } else {
     issue = {
