@@ -4,7 +4,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   lmStudio: {
     listModels: () => ipcRenderer.invoke('lmstudio:list-models'),
-    chat: (payload: { model: string; prompt: string; maxTokens?: number }) =>
+    chat: (payload: { model: string; prompt: string; maxTokens?: number; jsonMode?: boolean }) =>
       ipcRenderer.invoke('lmstudio:chat', payload)
   },
   voyage: {
