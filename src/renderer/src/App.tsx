@@ -521,9 +521,9 @@ function App(): React.JSX.Element {
         title: String(item.title), detail: String(item.detail),
         priority: typeof item.priority === 'string' ? item.priority : 'media'
       })))
-      if (changes.length === 0 && (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0)) {
+      if (effectiveChanges.length === 0 && (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0)) {
         setProposalError('El modelo no encontró cambios seguros ni recomendaciones.')
-      } else if (changes.length === 0) {
+      } else if (effectiveChanges.length === 0) {
         setProposalError('La IA generó recomendaciones, pero no encontró cambios que pueda representar de forma segura en el esquema actual.')
       }
     } catch (error) {
