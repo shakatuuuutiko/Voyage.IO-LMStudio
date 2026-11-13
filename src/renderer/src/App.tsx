@@ -64,6 +64,7 @@ interface ProposalChange {
   existed: boolean
   reason: string
   category: string
+  remove: boolean
 }
 
 function readPath(root: unknown, path: string[]): { value: unknown; exists: boolean } {
@@ -78,6 +79,21 @@ function readPath(root: unknown, path: string[]): { value: unknown; exists: bool
     } else return { value: undefined, exists: false }
   }
   return { value: current, exists: true }
+}
+
+function removePath(root: Record<string, unknown>, path: string[]): Record<string, unknown> {
+  const next = JSON.parse(JSON.stringify(root)) as Record<string, unknown>
+  let current: unknown = next
+  for (const segment of path.slice(0, -1)) {
+    if (Array.isArray(current) && /^\d+$/.test(segment)) current = current[Number(segment)]
+    else if (isRecord(current)) current = current[segment]
+    else throw new Error('La ruta que se quiere eliminar dejó de existir.')
+  }
+  const leaf = path[path.length - 1]
+  if (Array.isArray(current) && /^\d+$/.test(leaf)) current.splice(Number(leaf), 1)
+  else if (isRecord(current)) delete current[leaf]
+  else throw new Error('La ubicación que se quiere eliminar no es editable.')
+  return next
 }
 
 function writePath(root: Record<string, unknown>, path: string[], value: unknown): Record<string, unknown> {
@@ -349,7 +365,7 @@ function App(): React.JSX.Element {
         if (!isRecord(item) || !Array.isArray(item.path) || item.path.length === 0 ||
           !item.path.every((part) => typeof part === 'string' && part.length > 0) ||
           item.path.some((part) => ['__proto__', 'prototype', 'constructor'].includes(part)) ||
-          typeof item.reason !== 'string' || !Object.prototype.hasOwnProperty.call(item, 'value')) {
+          typeof item.reason !== 'string' || (!Object.prototype.hasOwnProperty.call(item, 'value') && item.remove !== true)) {
           throw new Error(`El cambio ${index + 1} tiene una ruta o estructura no permitida. La respuesta original se muestra abajo.`)
         }
         const path = item.path as string[]
@@ -359,7 +375,7 @@ function App(): React.JSX.Element {
         }
         const current = readPath(selectedWorldDraft, path)
         return { path, value: item.value, previousValue: current.value, existed: current.exists,
-          reason: item.reason, category: typeof item.category === 'string' ? item.category : 'modificación' }
+          reason: item.reason, category: typeof item.category === 'string' ? item.category : 'modificación', remove: item.remove === true }
       })
       const pathKeys = changes.map((change) => JSON.stringify(change.path))
       if (new Set(pathKeys).size !== pathKeys.length) throw new Error('La propuesta repite rutas.')
@@ -387,7 +403,7 @@ function App(): React.JSX.Element {
     if (!selectedWorldDraft || proposalChanges.length === 0) return
     try {
       let next = selectedWorldDraft
-      for (const change of proposalChanges) next = writePath(next, change.path, change.value)
+      for (const change of proposalChanges) next = change.remove ? removePath(next, change.path) : writePath(next, change.path, change.value)
       setSelectedWorldDraft(next)
       setProposalChanges([])
       setWorldValidation(null)
@@ -685,7 +701,7 @@ function App(): React.JSX.Element {
                                     <span className="helper">Valor actual{change.existed ? '' : ' (propiedad nueva)'}</span>
                                     <pre>{change.existed ? JSON.stringify(change.previousValue, null, 2) : '— No existe actualmente —'}</pre>
                                     <span className="helper">Valor propuesto</span>
-                                    <pre>{JSON.stringify(change.value, null, 2)}</pre>
+                                    <pre>{change.remove ? '— Eliminar esta propiedad —' : JSON.stringify(change.value, null, 2)}</pre>
                                   </div>
                                 ))}
                                 <button className="secondary-button" onClick={applyProposalToDraft}>Aplicar al borrador local</button>
