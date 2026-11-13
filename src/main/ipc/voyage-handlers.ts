@@ -10,7 +10,7 @@ import {
 const API_KEY_PREFIX = 'sk-voyage-v1-'
 
 function redactCredential(value: string): string {
-  return value.replace(/sk-voyage-v1-[^\\s"'<>]+/g, 'sk-voyage-v1-[REDACTED]')
+  return value.replace(/sk-voyage-v1-[^\s"'<>]+/g, 'sk-voyage-v1-[REDACTED]')
 }
 
 function getErrorMessage(error: unknown): string {
