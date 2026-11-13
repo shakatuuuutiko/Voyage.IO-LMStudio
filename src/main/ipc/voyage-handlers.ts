@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { VoyageApiError, VoyageCreatorClient } from '../services/voyage/client'
+import type { EditableWorld } from '../services/voyage/types'
 import {
   deleteVoyageApiKey,
   isVoyageCredentialEncryptionAvailable,
@@ -141,7 +142,7 @@ export function registerVoyageIpcHandlers(): void {
       const apiKey = await readVoyageApiKey()
       if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
       const result = await new VoyageCreatorClient(apiKey).replaceWorld(
-        payload.shortId, world as never, payload.etag
+        payload.shortId, world as unknown as EditableWorld, payload.etag
       )
       return { success: true, ...result }
     } catch (error) {
