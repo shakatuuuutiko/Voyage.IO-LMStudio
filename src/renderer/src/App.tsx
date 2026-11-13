@@ -111,19 +111,41 @@ function writePath(root: Record<string, unknown>, path: string[], value: unknown
   return next
 }
 
-function summarizeForAI(value: unknown, depth = 0): unknown {
-  if (typeof value === 'string') return value.length > 160 ? value.slice(0, 160) + '… [texto abreviado]' : value
-  if (value === null || typeof value === 'number' || typeof value === 'boolean') return value
-  if (Array.isArray(value)) return value.slice(0, depth < 2 ? 3 : 2).map((item) => summarizeForAI(item, depth + 1))
+function summarizeForAI(
+  value: unknown,
+  depth = 0,
+  budget: { remaining: number } = { remaining: 45000 }
+): unknown {
+  if (budget.remaining <= 80) return '[resumen omitido por límite]'
+  if (typeof value === 'string') {
+    const allowance = Math.max(0, Math.min(160, budget.remaining - 40))
+    const result = value.length > allowance ? value.slice(0, allowance) + '… [texto abreviado]' : value
+    budget.remaining -= result.length
+    return result
+  }
+  if (value === null || typeof value === 'number' || typeof value === 'boolean') {
+    budget.remaining -= 12
+    return value
+  }
+  if (Array.isArray(value)) {
+    const limit = depth < 2 ? 3 : 2
+    return value.slice(0, limit).map((item) => summarizeForAI(item, depth + 1, budget))
+  }
   if (isRecord(value)) {
     const entries = Object.entries(value)
     const result: Record<string, unknown> = {}
-    for (const [key, item] of entries.slice(0, depth < 2 ? 30 : 18)) {
+    const keyLimit = depth < 2 ? 30 : 18
+    for (const [key, item] of entries.slice(0, keyLimit)) {
+      if (budget.remaining <= 100) break
+      budget.remaining -= key.length + 4
       result[key] = depth >= 4
-        ? (Array.isArray(item) ? '[array abreviado]' : isRecord(item) ? '[objeto abreviado]' : summarizeForAI(item, depth + 1))
-        : summarizeForAI(item, depth + 1)
+        ? (Array.isArray(item) ? '[array abreviado]' : isRecord(item) ? '[objeto abreviado]' : summarizeForAI(item, depth + 1, budget))
+        : summarizeForAI(item, depth + 1, budget)
     }
-    if (entries.length > Object.keys(result).length) result.__summary_omitted_keys = entries.length - Object.keys(result).length
+    if (entries.length > Object.keys(result).length && budget.remaining > 60) {
+      result.__summary_omitted_keys = entries.length - Object.keys(result).length
+      budget.remaining -= 32
+    }
     return result
   }
   return String(value)
@@ -376,7 +398,8 @@ function App(): React.JSX.Element {
       if (!isRecord(selection) || !Array.isArray(selection.sections)) throw new Error('El análisis inicial no devolvió una lista válida de secciones.')
       const selectedKeys = [...new Set(selection.sections.filter((key): key is string => typeof key === 'string' && sectionKeys.includes(key)))].slice(0, 5)
       if (selectedKeys.length === 0) throw new Error('La IA no seleccionó ninguna sección válida del mundo. Reintenta o formula una petición más concreta.')
-      const focusedWorld = Object.fromEntries(selectedKeys.map((key) => [key, summarizeForAI(selectedWorldDraft[key])]))
+      const sectionBudget = { remaining: 65000 }
+      const focusedWorld = Object.fromEntries(selectedKeys.map((key) => [key, summarizeForAI(selectedWorldDraft[key], 0, sectionBudget)]))
       const instruction = [
         'Eres un arquitecto experto en Voyage Creator Studio y en el GameState del mundo proporcionado.',
         'Recibes un resumen estructural de las secciones elegidas, no el documento completo. No propongas cambios sobre datos que no aparecen.',
