@@ -9,7 +9,7 @@ Base: `main` at `23690294e1c0d9ead35a4080604fc3b258f55a45`
 - This branch was created from the initial `main` commit. The user subsequently uploaded the official API contract files to `main`; exact copies are now included in this feature branch under `docs/creator-api/`.
 - Keep implementation work on this feature branch. Do not merge or publish changes without explicit approval.
 - Preserve the existing Electron + React + TypeScript application and the working LM Studio IPC contract while extending it.
-- Voyage API credentials must remain in Electron's main process and must never enter renderer state, prompts, logs, or source control.
+- Voyage API credentials are accepted transiently through the password input and one IPC call, but are never persisted in renderer state/localStorage, returned to the UI, logged, sent to LM Studio, or committed. The main process stores only the encrypted value.
 - Publish/unpublish must remain explicit user-initiated actions with a confirmation step.
 
 ## Repository baseline
@@ -98,6 +98,25 @@ The earlier human-readable overview refers to Creator API keys. The newly upload
 | `npm run build` | Not run — requires local project environment |
 | Windows packaging build | Not run |
 
+## Phase 1 implementation status
+
+A first connection foundation is now present on this branch:
+
+- `src/main/services/voyage/client.ts`: production-host HTTP client and authenticated connection check via `GET /worlds?page=0&type=world`; no `Origin` header is sent.
+- `src/main/services/voyage/secure-store.ts`: encrypted key storage using Electron `safeStorage`; rejects unavailable or `basic_text` storage backends.
+- `src/main/ipc/voyage-handlers.ts`: status, save, test and clear handlers. The key is never returned through IPC.
+- `src/preload/index.ts` and `src/preload/index.d.ts`: typed bridge additions. Existing LM Studio methods are preserved.
+- `src/renderer/src/App.tsx`: password input, save/test/clear controls, and status feedback. The input is uncontrolled and cleared after successful save.
+- `src/main/index.ts`: explicitly declares `contextIsolation: true` and `nodeIntegration: false`; sandbox remains disabled pending a separate compatibility test.
+
+The UI validates only the documented key prefix and token presence. Only the authenticated API request can establish whether the key is active, correctly scoped, and eligible.
+
+## Verification status update
+
+- Source edits are committed to the feature branch.
+- The local environment used for this remote session cannot resolve GitHub, so the repository could not be cloned here for a build.
+- `npm run typecheck`, `npm run build`, a Windows launch test, and a live authenticated API test remain unverified and must be run from the user's Windows checkout.
+
 ## Next step
 
-Complete a focused contract review of request/response envelopes, error codes, auth/key requirements, and upload flows. Then implement the isolated Voyage HTTP client and secure credential storage without changing the existing renderer or LM Studio behavior. Before exposing API-key setup in the UI, resolve the Player API key wording/permissions discrepancy with the creator.
+Run the project locally and verify the Voyage key status/save/test/clear flow. Once a successful authenticated response is observed, capture the real `GET /worlds` and `GET /worlds/{shortId}` payload shapes and ETag behavior. Those responses are intentionally not fully modeled in OpenAPI; do not implement world browsing or editing based on guessed response shapes.
