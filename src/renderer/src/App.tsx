@@ -200,7 +200,7 @@ function App(): React.JSX.Element {
   const [indexBusy, setIndexBusy] = useState(false)
   const [indexQuery, setIndexQuery] = useState('')
   const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
-  const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; source: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number }>>([])
+  const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; source: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number; history: Array<{ at: string; action: string; detail: string }> }>>([])
   const [workspaceNotice, setWorkspaceNotice] = useState('')
   const [issueReport, setIssueReport] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
@@ -928,6 +928,12 @@ function App(): React.JSX.Element {
                             <div className="world-browser-heading"><strong>{issue.code}</strong><span>{issue.severity.toUpperCase()} · {issue.status}</span></div>
                             <p>{issue.message}</p><code>{issue.path || 'Sin ruta'}</code>
                             <span className="helper">Detectado {issue.occurrences} vez/veces</span>
+                            {issue.history.length > 0 && <details className="issue-history">
+                              <summary>Historial · {issue.history.length} eventos</summary>
+                              {issue.history.slice(-10).reverse().map((entry, index) => <div className="issue-history-entry" key={index}>
+                                <span>{formatDate(entry.at)} · {entry.action}</span><p>{entry.detail}</p>
+                              </div>)}
+                            </details>}
                             <div className="issue-actions">
                               {issue.status !== 'investigating' && <button className="secondary-button" onClick={() => void changeIssueStatus(issue.id, 'investigating')}>Investigar</button>}
                               {issue.status !== 'fixed-pending-validation' && <button className="secondary-button" onClick={() => void changeIssueStatus(issue.id, 'fixed-pending-validation')}>Marcar reparación pendiente</button>}
