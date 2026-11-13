@@ -166,6 +166,9 @@ function App(): React.JSX.Element {
       setSelectedWorldTitle('')
       setSelectedWorldEtag(null)
       setSelectedWorldJson('')
+      setSelectedWorldInitialGameState(null)
+      setWorldValidation(null)
+      setWorldValidationError('')
       setWorldListOutput('')
     } catch (error) {
       setWorldListOutput(error instanceof Error ? error.message : 'Error al consultar los mundos.')
@@ -181,6 +184,9 @@ function App(): React.JSX.Element {
     setSelectedWorldTitle(world.title)
     setSelectedWorldEtag(null)
     setSelectedWorldJson('')
+    setSelectedWorldInitialGameState(null)
+    setWorldValidation(null)
+    setWorldValidationError('')
     try {
       const result = await window.api.voyage.readWorld(world.shortId)
       if (!result.success || !result.world) {
@@ -192,6 +198,7 @@ function App(): React.JSX.Element {
       setWorldValidationError('')
       setSelectedWorldJson(JSON.stringify(result.world, null, 2))
     } catch (error) {
+      setSelectedWorldInitialGameState(null)
       setSelectedWorldJson(error instanceof Error ? error.message : 'Error al leer el mundo.')
     } finally {
       setWorldReadBusy(false)
