@@ -576,18 +576,29 @@ function App(): React.JSX.Element {
         setProposalError('La IA generó recomendaciones, pero no encontró cambios que pueda representar de forma segura en el esquema actual.')
       }
     } catch (error) {
-      setProposalError(error instanceof Error ? error.message : 'No se pudo generar la propuesta.')
+      const message = error instanceof Error ? error.message : 'No se pudo generar la propuesta.'
+      setProposalError(message)
+      if (selectedWorldId) {
+        await window.api.workspace.recordIssue({
+          worldId: selectedWorldId, source: 'lm-studio', severity: 'warning',
+          code: 'LOCAL_AI_PROPOSAL_FAILURE', message, path: ''
+        }).catch(() => undefined)
+        const issueResult = await window.api.workspace.listIssues(selectedWorldId)
+        if (issueResult.success) setTrackedIssues(issueResult.issues)
+      }
     } finally {
       setProposalBusy(false)
     }
   }
 
-  function applyProposalToDraft(): void {
+  async function applyProposalToDraft(): Promise<void> {
     if (!selectedWorldDraft || proposalChanges.length === 0) return
     try {
       let next = selectedWorldDraft
       for (const change of proposalChanges) next = change.remove ? removePath(next, change.path) : writePath(next, change.path, change.value)
       setSelectedWorldDraft(next)
+      const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: next })
+      if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
       setProposalChanges([])
       setWorldValidation(null)
       setWorldValidationError('')
@@ -599,7 +610,12 @@ function App(): React.JSX.Element {
 
   function discardDraftChanges(): void {
     if (!selectedWorldInitialGameState) return
-    setSelectedWorldDraft(JSON.parse(JSON.stringify(selectedWorldInitialGameState)) as Record<string, unknown>)
+    const restored = JSON.parse(JSON.stringify(selectedWorldInitialGameState)) as Record<string, unknown>
+    setSelectedWorldDraft(restored)
+    if (selectedWorldId) {
+      const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: restored })
+      if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+    }
     setProposalChanges([])
     setProposalError('Borrador local restaurado desde la copia original descargada.')
     setWorldValidation(null)
