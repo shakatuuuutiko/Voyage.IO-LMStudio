@@ -99,7 +99,7 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
     })
     for (let index = children.length - 1; index >= 0; index -= 1) {
       const [key, child] = children[index]
-      const escaped = key.replace(/~/g, '~0').replace(/\\//g, '~1')
+      const escaped = key.replace(/~/g, '~0').replace(/\//g, '~1')
       stack.push({ value: child, path: current.path + '/' + escaped, key })
     }
   }
