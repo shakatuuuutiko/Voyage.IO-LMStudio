@@ -9,6 +9,7 @@ This phase adds a persistent local workspace for each Voyage world, while keepin
 - The selected world's detail/work area is moved from the narrow navigation rail into a fixed, scrollable main-canvas surface.
 - The left rail remains for model configuration, Voyage credentials, integrations, and world selection.
 - The selected-world canvas now contains the world inspector, local knowledge index, proposal editor, and validation panel.
+- Proposed changes can be selected individually. Applying a subset retains the unselected proposals for later review.
 - The selected-world canvas is only shown after a world is opened.
 
 ### World Knowledge Index
@@ -51,7 +52,7 @@ Users can also manually report warnings, phantom failures, and observed in-game 
 ## Next engineering steps
 
 1. Add a context retrieval service that takes an intent and relevant index hits, then fetches the exact source fragments from the current draft before constructing the LM Studio prompt.
-2. Add per-change approval/rejection and structured diff review.
+2. Extend per-change review with explicit reject controls, conflict detection, and structured diff review.
 3. Add stronger semantic checks and reference integrity checks for proposed changes.
 4. Add repair verification that compares the issue set before and after validation and preserves evidence.
 5. Implement remote save separately, with ETag/If-Match concurrency protection and explicit confirmation. Publication remains a separate, explicit action.
