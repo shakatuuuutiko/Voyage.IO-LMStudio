@@ -8,11 +8,13 @@ Branch: `feature/voyage-creator-api`
 - Main-process authenticated HTTP client with a 30-second timeout and structured HTTP error details.
 - Connection check uses `GET /worlds?page=0&type=world`. It does not assume undocumented response properties.
 - Player API key is validated for the documented `sk-voyage-v1-` prefix and non-empty token.
-- Electron `safeStorage` encrypts the key before it is written under the app's user-data directory.
+- Electron `safeStorage` encrypts the key before it is written under the app's user-data directory. Save and read operations both reject the `basic_text` backend.
 - The storage layer rejects unavailable encryption and Electron's `basic_text` backend.
 - The renderer receives only status/result objects. The key is not returned from main-process IPC.
 - Existing LM Studio IPC channels and behavior are preserved.
 - BrowserWindow explicitly declares `contextIsolation: true` and `nodeIntegration: false`. `sandbox` remains false until preload compatibility is tested.
+- Builder `appId` now matches the runtime ID (`com.voyage.aicompanion`); the example.com update feed has been removed until a real update service exists.
+- Package metadata no longer contains the template author/homepage values.
 
 ## Configure the key
 
