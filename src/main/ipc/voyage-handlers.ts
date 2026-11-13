@@ -22,7 +22,7 @@ export function registerVoyageIpcHandlers(): void {
 
   ipcMain.handle('voyage:get-status', async () => {
     try {
-      const encryptionAvailable = isVoyageCredentialEncryptionAvailable()
+      const encryptionAvailable = await isVoyageCredentialEncryptionAvailable()
       const apiKey = await readVoyageApiKey()
       return {
         success: true,
@@ -33,7 +33,7 @@ export function registerVoyageIpcHandlers(): void {
       return {
         success: false,
         configured: false,
-        encryptionAvailable: isVoyageCredentialEncryptionAvailable(),
+        encryptionAvailable: await isVoyageCredentialEncryptionAvailable().catch(() => false),
         error: getErrorMessage(error)
       }
     }
