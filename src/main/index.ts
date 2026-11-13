@@ -32,11 +32,22 @@ async function lmRequest(path: string, body?: object): Promise<unknown> {
       signal: controller.signal
     })
 
-    const data = await response.json()
+    const responseText = await response.text()
+    let data: unknown = null
+    if (responseText) {
+      try {
+        data = JSON.parse(responseText) as unknown
+      } catch {
+        data = responseText
+      }
+    }
 
     if (!response.ok) {
-      const error = data as { error?: { message?: string } }
-      throw new Error(error.error?.message || `LM Studio respondió HTTP ${response.status}`)
+      const payload = data && typeof data === 'object' ? data as { error?: string | { message?: string }; message?: string; detail?: string } : null
+      const errorMessage = typeof payload?.error === 'string'
+        ? payload.error
+        : payload?.error?.message || payload?.message || payload?.detail || (typeof data === 'string' ? data.slice(0, 1200) : '')
+      throw new Error(`LM Studio HTTP ${response.status}: ${errorMessage || 'La solicitud fue rechazada sin detalles.'}`)
     }
 
     return data
@@ -83,7 +94,7 @@ ipcMain.handle(
         throw new Error('Escribe una instrucción.')
       }
 
-      const maxTokens = Math.min(8192, Math.max(256, Number(payload.maxTokens) || 4096))
+      const maxTokens = Math.min(65536, Math.max(256, Number(payload.maxTokens) || 4096))
 
       const requestBody = {
         model: payload.model,
