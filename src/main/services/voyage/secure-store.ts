@@ -8,15 +8,21 @@ function getKeyFilePath(): string {
   return join(app.getPath('userData'), KEY_FILE_NAME)
 }
 
+function hasSecureStorageBackend(): boolean {
+  return (
+    safeStorage.isEncryptionAvailable() &&
+    safeStorage.getSelectedStorageBackend() !== 'basic_text'
+  )
+}
+
 export function isVoyageCredentialEncryptionAvailable(): boolean {
-  if (!safeStorage.isEncryptionAvailable()) return false
-  return safeStorage.getSelectedStorageBackend() !== 'basic_text'
+  return hasSecureStorageBackend()
 }
 
 export async function saveVoyageApiKey(apiKey: string): Promise<void> {
-  if (!safeStorage.isEncryptionAvailable()) {
+  if (!hasSecureStorageBackend()) {
     throw new Error(
-      'El cifrado seguro del sistema no está disponible. No se guardará la API Key.'
+      'El almacenamiento cifrado del sistema no está disponible. No se guardará la API Key.'
     )
   }
 
@@ -31,11 +37,11 @@ export async function saveVoyageApiKey(apiKey: string): Promise<void> {
 }
 
 export async function readVoyageApiKey(): Promise<string | null> {
-  try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error('El cifrado seguro del sistema no está disponible.')
-    }
+  if (!hasSecureStorageBackend()) {
+    throw new Error('El almacenamiento cifrado del sistema no está disponible.')
+  }
 
+  try {
     const encrypted = await readFile(getKeyFilePath(), 'utf8')
     if (!encrypted.trim()) return null
 
