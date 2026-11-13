@@ -23,7 +23,7 @@ The index is generated locally from the complete downloaded `initialGameState`. 
 
 The index is a derived cache, not a replacement for the Voyage GameState. It is rebuilt when a world is opened, and refreshed after applying or discarding local draft changes. A hard cap of 150,000 indexed nodes prevents unbounded indexing; the UI marks capped indexes as partial.
 
-Search is currently structural/textual substring matching over indexed key names, paths, and previews. It does not yet use embeddings or semantic vector search. Proposal generation now queries this index using terms derived from the task and supplies matching paths/previews as retrieval hints to the section-selection and proposal prompts. The model still receives bounded summaries of selected draft sections; index retrieval does not yet fetch arbitrary full-size subtrees. Index results point back to the original GameState paths; the search result is not itself an editable source of truth.
+Search is currently structural/textual substring matching over indexed key names, paths, and previews. It does not yet use embeddings or semantic vector search. Proposal generation now queries this index using terms derived from the task and supplies matching paths/previews as retrieval hints to the section-selection and proposal prompts. The model also receives bounded summaries of up to 20 exact values fetched from matching paths in the current draft (shared 18,000-character budget), alongside the selected-section summaries. This is targeted retrieval, not an unbounded full-subtree dump. Index results point back to the original GameState paths; the search result is not itself an editable source of truth.
 
 ### Issue and repair tracker
 
