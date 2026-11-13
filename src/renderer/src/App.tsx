@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 function App(): React.JSX.Element {
   const [models, setModels] = useState<string[]>([])
@@ -9,6 +9,11 @@ function App(): React.JSX.Element {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [maxTokens, setMaxTokens] = useState(4096)
+  const [voyageConfigured, setVoyageConfigured] = useState(false)
+  const [voyageEncryptionAvailable, setVoyageEncryptionAvailable] = useState(false)
+  const [voyageBusy, setVoyageBusy] = useState(false)
+  const [voyageNotice, setVoyageNotice] = useState('')
+  const apiKeyInput = useRef<HTMLInputElement>(null)
 
   async function loadModels(): Promise<void> {
     setConnection('loading')
@@ -40,9 +45,78 @@ function App(): React.JSX.Element {
     }
   }
 
+  async function loadVoyageStatus(): Promise<void> {
+    try {
+      const result = await window.api.voyage.getStatus()
+      setVoyageConfigured(result.configured)
+      setVoyageEncryptionAvailable(result.encryptionAvailable)
+      if (!result.success && result.error) setVoyageNotice(result.error)
+    } catch (error) {
+      setVoyageNotice(error instanceof Error ? error.message : 'No se pudo consultar Voyage.')
+    }
+  }
+
   useEffect(() => {
     void loadModels()
+    void loadVoyageStatus()
   }, [])
+
+  async function saveVoyageKey(): Promise<void> {
+    const value = apiKeyInput.current?.value.trim()
+    if (!value || voyageBusy) {
+      setVoyageNotice('Introduce tu Player API Key de Voyage.')
+      return
+    }
+
+    setVoyageBusy(true)
+    setVoyageNotice('')
+    try {
+      const result = await window.api.voyage.saveApiKey(value)
+      if (result.success) {
+        if (apiKeyInput.current) apiKeyInput.current.value = ''
+        setVoyageConfigured(true)
+        setVoyageNotice(result.message || 'API Key guardada.')
+      } else {
+        setVoyageNotice(result.error || 'No se pudo guardar la API Key.')
+      }
+    } catch (error) {
+      setVoyageNotice(error instanceof Error ? error.message : 'Error al guardar la API Key.')
+    } finally {
+      setVoyageBusy(false)
+    }
+  }
+
+  async function testVoyageConnection(): Promise<void> {
+    if (voyageBusy) return
+    setVoyageBusy(true)
+    setVoyageNotice('Comprobando autenticación con Voyage...')
+    try {
+      const result = await window.api.voyage.testConnection()
+      setVoyageNotice(result.success ? (result.message || 'Conexión correcta.') : (result.error || 'Falló la conexión.'))
+    } catch (error) {
+      setVoyageNotice(error instanceof Error ? error.message : 'Error de conexión.')
+    } finally {
+      setVoyageBusy(false)
+    }
+  }
+
+  async function clearVoyageKey(): Promise<void> {
+    if (voyageBusy) return
+    setVoyageBusy(true)
+    try {
+      const result = await window.api.voyage.clearApiKey()
+      if (result.success) {
+        setVoyageConfigured(false)
+        setVoyageNotice('API Key eliminada del almacenamiento local.')
+      } else {
+        setVoyageNotice(result.error || 'No se pudo eliminar la API Key.')
+      }
+    } catch (error) {
+      setVoyageNotice(error instanceof Error ? error.message : 'Error al eliminar la API Key.')
+    } finally {
+      setVoyageBusy(false)
+    }
+  }
 
   async function sendPrompt(): Promise<void> {
     if (!prompt.trim() || !selectedModel || busy) return
@@ -152,10 +226,54 @@ function App(): React.JSX.Element {
             LM Studio
             <span className="integration-tag">LOCAL</span>
           </div>
-          <div className="integration-item pending">
+          <div className={`integration-item ${voyageConfigured ? 'active' : 'pending'}`}>
             <span className="integration-indicator" />
             Voyage Creator API
-            <span className="integration-tag">PENDIENTE</span>
+            <span className="integration-tag">{voyageConfigured ? 'CLAVE GUARDADA' : 'SIN CONFIGURAR'}</span>
+          </div>
+
+          <div className="section-label">CUENTA VOYAGE</div>
+          <div className="panel">
+            <label htmlFor="voyage-api-key">Player API Key</label>
+            <input
+              ref={apiKeyInput}
+              id="voyage-api-key"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="sk-voyage-v1-..."
+              disabled={voyageBusy || !voyageEncryptionAvailable}
+            />
+            <p className="helper">
+              La clave se cifra con el almacenamiento seguro de Windows. No se muestra ni se devuelve a la interfaz después de guardarla.
+            </p>
+            {!voyageEncryptionAvailable && (
+              <p className="helper security-warning">
+                El cifrado seguro no está disponible. No se puede guardar la clave en este momento.
+              </p>
+            )}
+            <button
+              className="secondary-button"
+              onClick={() => void saveVoyageKey()}
+              disabled={voyageBusy || !voyageEncryptionAvailable}
+            >
+              Guardar API Key
+            </button>
+            <button
+              className="secondary-button"
+              onClick={() => void testVoyageConnection()}
+              disabled={voyageBusy || !voyageConfigured}
+            >
+              Probar conexión
+            </button>
+            <button
+              className="secondary-button"
+              onClick={() => void clearVoyageKey()}
+              disabled={voyageBusy || !voyageConfigured}
+            >
+              Eliminar API Key
+            </button>
+            {voyageNotice && <p className="helper" role="status">{voyageNotice}</p>}
           </div>
         </aside>
 
