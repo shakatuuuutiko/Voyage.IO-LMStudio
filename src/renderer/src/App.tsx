@@ -811,7 +811,7 @@ function App(): React.JSX.Element {
         <div className="brand">
           <div className="brand-mark">V</div>
           <div>
-            <h1>Voyage AI Companion</h1>
+            <h1>VoyAgent</h1>
             <p>Asistente local para Voyage Creator Studio</p>
           </div>
         </div>
@@ -1195,7 +1195,7 @@ function App(): React.JSX.Element {
       </section>
 
       <footer className="footer">
-        <span>Voyage AI Companion</span>
+        <span>VoyAgent</span>
         <span>Motor local · Sin uso de la IA interna de Voyage</span>
       </footer>
     </main>
