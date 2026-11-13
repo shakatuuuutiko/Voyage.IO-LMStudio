@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { registerVoyageIpcHandlers } from './ipc/voyage-handlers'
 
 const LM_STUDIO_URL = 'http://127.0.0.1:1234'
 
@@ -142,6 +143,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerVoyageIpcHandlers()
   electronApp.setAppUserModelId('com.voyage.aicompanion')
 
   app.on('browser-window-created', (_, window) => {
