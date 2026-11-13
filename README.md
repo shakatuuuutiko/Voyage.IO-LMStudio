@@ -1,4 +1,8 @@
-# voyage-io
+# VoyAgent
+
+Aplicación de escritorio para gestionar mundos de Voyage Creator Studio con modelos locales mediante LM Studio.
+
+> El nombre interno del paquete npm se mantiene como `voyage-io` para conservar compatibilidad con el perfil de desarrollo existente.
 
 An Electron application with React and TypeScript
 
