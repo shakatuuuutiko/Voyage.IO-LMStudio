@@ -196,7 +196,7 @@ function App(): React.JSX.Element {
   const [worldValidationBusy, setWorldValidationBusy] = useState(false)
   const [worldValidation, setWorldValidation] = useState<{ valid: boolean; errors: Array<{ code: string; message: string; path: string }>; warnings: Array<{ code: string; message: string; path: string }>; requestId: string } | null>(null)
   const [worldValidationError, setWorldValidationError] = useState('')
-  const [worldIndex, setWorldIndex] = useState<{ generatedAt: string; nodeCount: number; rootKeys: string[] } | null>(null)
+  const [worldIndex, setWorldIndex] = useState<{ generatedAt: string; nodeCount: number; complete: boolean; rootKeys: string[] } | null>(null)
   const [indexBusy, setIndexBusy] = useState(false)
   const [indexQuery, setIndexQuery] = useState('')
   const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
@@ -394,7 +394,22 @@ function App(): React.JSX.Element {
         })
       }
       const issueResult = await window.api.workspace.listIssues(selectedWorldId)
-      if (issueResult.success) setTrackedIssues(issueResult.issues)
+      if (issueResult.success) {
+        const currentKeys = new Set(detectedIssues.map((issue) => [issue.code, issue.path, issue.message].join('|')))
+        for (const previous of issueResult.issues) {
+          const key = [previous.code, previous.path, previous.message].join('|')
+          if (previous.source === 'voyage-validation' &&
+            previous.status !== 'resolved' && previous.status !== 'false-positive' &&
+            !currentKeys.has(key)) {
+            await window.api.workspace.updateIssue({
+              worldId: selectedWorldId, issueId: previous.id, status: 'resolved',
+              detail: 'No volvió a aparecer en la última validación completa de Voyage.'
+            })
+          }
+        }
+        const refreshed = await window.api.workspace.listIssues(selectedWorldId)
+        if (refreshed.success) setTrackedIssues(refreshed.issues)
+      }
     } catch (error) {
       setWorldValidationError(error instanceof Error ? error.message : 'Error al validar el borrador.')
     } finally {
@@ -859,7 +874,7 @@ function App(): React.JSX.Element {
                       <section className="world-intelligence-panel">
                         <div className="world-browser-heading">
                           <strong>WORLD KNOWLEDGE INDEX</strong>
-                          <span>{indexBusy ? 'GENERANDO...' : worldIndex ? worldIndex.nodeCount.toLocaleString() + ' NODOS' : 'SIN ÍNDICE'}</span>
+                          <span>{indexBusy ? 'GENERANDO...' : worldIndex ? worldIndex.nodeCount.toLocaleString() + (worldIndex.complete ? ' NODOS' : ' NODOS · PARCIAL') : 'SIN ÍNDICE'}</span>
                         </div>
                         <p className="helper">Índice estructural local del GameState. Conserva rutas JSON Pointer exactas y permite localizar contenido sin enviar todo el mundo a LM Studio.</p>
                         {worldIndex && <p className="helper">Actualizado: {formatDate(worldIndex.generatedAt)} · Secciones raíz: {worldIndex.rootKeys.length}</p>}
