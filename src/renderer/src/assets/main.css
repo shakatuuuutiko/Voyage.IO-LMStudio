@@ -943,3 +943,25 @@ html, body, #root, .app-shell, .workspace {
   color: #c1c8d5;
   font-size: 10px;
 }
+
+
+.proposal-select-all,
+.proposal-change-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #aeb8ca;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.proposal-select-all {
+  padding: 7px 0;
+}
+
+.proposal-select-all input,
+.proposal-change-select input {
+  width: 14px;
+  height: 14px;
+  accent-color: #7668e8;
+}
