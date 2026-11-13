@@ -189,20 +189,22 @@ export async function searchWorldIndex(worldId: string, query: string, limit = 6
     .map((item) => item.node)
 }
 
-export async function getRelatedWorldNodes(worldId: string, path: string, limit = 40): Promise<Array<{ direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }>> {
+export async function getRelatedWorldNodes(worldId: string, paths: string[], limit = 40): Promise<Array<{ matchedPath: string; direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }>> {
   const index = await readWorldIndex(worldId)
   if (!index) return []
+  const requestedPaths = new Set(paths.filter((path) => typeof path === 'string'))
   const nodeByPath = new Map(index.nodes.map((node) => [node.path, node]))
-  const results: Array<{ direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }> = []
+  const results: Array<{ matchedPath: string; direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }> = []
   for (const relationship of index.relationships) {
-    if (relationship.sourcePath === path) {
+    if (requestedPaths.has(relationship.sourcePath)) {
       const node = nodeByPath.get(relationship.targetPath)
-      if (node) results.push({ direction: 'outgoing', node, relationship })
-    } else if (relationship.targetPath === path) {
-      const node = nodeByPath.get(relationship.sourcePath)
-      if (node) results.push({ direction: 'incoming', node, relationship })
+      if (node) results.push({ matchedPath: relationship.sourcePath, direction: 'outgoing', node, relationship })
     }
-    if (results.length >= Math.max(1, Math.min(100, limit))) break
+    if (requestedPaths.has(relationship.targetPath)) {
+      const node = nodeByPath.get(relationship.sourcePath)
+      if (node) results.push({ matchedPath: relationship.targetPath, direction: 'incoming', node, relationship })
+    }
+    if (results.length >= Math.max(1, Math.min(200, limit))) break
   }
   return results
 }
