@@ -6,6 +6,12 @@ const api = {
     listModels: () => ipcRenderer.invoke('lmstudio:list-models'),
     chat: (payload: { model: string; prompt: string; maxTokens?: number }) =>
       ipcRenderer.invoke('lmstudio:chat', payload)
+  },
+  voyage: {
+    getStatus: () => ipcRenderer.invoke('voyage:get-status'),
+    saveApiKey: (apiKey: string) => ipcRenderer.invoke('voyage:save-api-key', apiKey),
+    testConnection: () => ipcRenderer.invoke('voyage:test-connection'),
+    clearApiKey: () => ipcRenderer.invoke('voyage:clear-api-key')
   }
 }
 
