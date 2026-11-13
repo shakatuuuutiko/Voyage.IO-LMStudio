@@ -541,7 +541,10 @@ function App(): React.JSX.Element {
         direction: entry.direction, matchedValue: entry.relationship.matchedValue,
         relatedFrom: entry.matchedPath
       })) : []
-      const contextNodes = [...new Map([...indexMatches, ...relationshipMatches].map((item) => [item.path, item])).values()]
+      const contextNodes: typeof indexMatches = [...indexMatches]
+      for (const related of relationshipMatches) {
+        if (!contextNodes.some((item) => item.path === related.path)) contextNodes.push(related)
+      }
       const retrievalBudget = { remaining: 18000 }
       const retrievedFragments = contextNodes.slice(0, 25).map((item) => {
         const path = item.path ? item.path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~')) : []
