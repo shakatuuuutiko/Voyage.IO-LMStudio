@@ -22,7 +22,7 @@ The index is generated locally from the complete downloaded `initialGameState`. 
 
 The index is a derived cache, not a replacement for the Voyage GameState. It is rebuilt when a world is opened, and refreshed after applying or discarding local draft changes. A hard cap of 150,000 indexed nodes prevents unbounded indexing; the UI marks capped indexes as partial.
 
-Search is currently structural/textual substring matching over indexed key names, paths, and previews. It does not yet use embeddings or semantic vector search. Index results point back to the original GameState paths; the search result is not itself an editable source of truth.
+Search is currently structural/textual substring matching over indexed key names, paths, and previews. It does not yet use embeddings or semantic vector search. Proposal generation now queries this index using terms derived from the task and supplies matching paths/previews as retrieval hints to the section-selection and proposal prompts. The model still receives bounded summaries of selected draft sections; index retrieval does not yet fetch arbitrary full-size subtrees. Index results point back to the original GameState paths; the search result is not itself an editable source of truth.
 
 ### Issue and repair tracker
 
@@ -36,8 +36,9 @@ The tracker stores:
 Currently captured automatically:
 - Voyage draft validation errors and warnings.
 - Local LM Studio proposal failures.
+- Voyage validation request failures.
 
-Users can also manually report warnings, phantom failures, and observed in-game behavior. After a complete Voyage draft validation, previously tracked validation issues absent from the new result are marked resolved. This reconciliation applies only to Voyage validation issues; manual reports and LM Studio failures are not auto-resolved.
+Users can also manually report warnings, phantom failures, and observed in-game behavior. Each issue exposes its recent detection/status history in the HUD. After a complete Voyage draft validation, previously tracked validation issues absent from the new result are marked resolved. This reconciliation applies only to Voyage validation issues; manual reports and LM Studio failures are not auto-resolved.
 
 ### Safety boundaries
 
