@@ -191,6 +191,7 @@ function App(): React.JSX.Element {
   const [proposalInfo, setProposalInfo] = useState('')
   const [proposalRawResponse, setProposalRawResponse] = useState('')
   const [proposalChanges, setProposalChanges] = useState<ProposalChange[]>([])
+  const [selectedProposalPaths, setSelectedProposalPaths] = useState<string[]>([])
   const [proposalSuggestions, setProposalSuggestions] = useState<Array<{ title: string; detail: string; priority: string }>>([])
   const [worldReadBusy, setWorldReadBusy] = useState(false)
   const [worldValidationBusy, setWorldValidationBusy] = useState(false)
@@ -609,6 +610,7 @@ function App(): React.JSX.Element {
       const pathKeys = effectiveChanges.map((change) => JSON.stringify(change.path))
       if (new Set(pathKeys).size !== pathKeys.length) throw new Error('La propuesta repite rutas.')
       setProposalChanges(effectiveChanges)
+      setSelectedProposalPaths([])
       const ignoredMessages = [
         ignoredTypeChanges ? `${ignoredTypeChanges} cambio(s) descartado(s) por incompatibilidad de tipo` : '',
         ignoredNoOpChanges ? `${ignoredNoOpChanges} cambio(s) descartado(s) porque no modificaban el valor` : ''
@@ -642,15 +644,26 @@ function App(): React.JSX.Element {
     }
   }
 
+  function toggleProposalChange(pathKey: string, checked: boolean): void {
+    setSelectedProposalPaths((current) => checked
+      ? [...new Set([...current, pathKey])]
+      : current.filter((key) => key !== pathKey))
+  }
+
   async function applyProposalToDraft(): Promise<void> {
-    if (!selectedWorldDraft || proposalChanges.length === 0) return
+    const selectedChanges = proposalChanges.filter((change) => selectedProposalPaths.includes(JSON.stringify(change.path)))
+    if (!selectedWorldDraft || selectedChanges.length === 0) {
+      setProposalError('Selecciona al menos un cambio para aplicarlo al borrador local.')
+      return
+    }
     try {
       let next = selectedWorldDraft
-      for (const change of proposalChanges) next = change.remove ? removePath(next, change.path) : writePath(next, change.path, change.value)
+      for (const change of selectedChanges) next = change.remove ? removePath(next, change.path) : writePath(next, change.path, change.value)
       setSelectedWorldDraft(next)
       const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: next })
       if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
       setProposalChanges([])
+      setSelectedProposalPaths([])
       setWorldValidation(null)
       setWorldValidationError('')
       setProposalError('Propuesta aplicada únicamente al borrador local en memoria. El mundo remoto no fue modificado.')
@@ -1002,8 +1015,10 @@ function App(): React.JSX.Element {
                             {proposalChanges.length > 0 && (
                               <div className="proposal-review">
                                 <strong>Revisión de propuesta · {proposalChanges.length} cambios</strong>
+                                <label className="proposal-select-all"><input type="checkbox" checked={selectedProposalPaths.length === proposalChanges.length && proposalChanges.length > 0} onChange={(event) => setSelectedProposalPaths(event.target.checked ? proposalChanges.map((change) => JSON.stringify(change.path)) : [])} /> Seleccionar todos los cambios</label>
                                 {proposalChanges.map((change) => (
                                   <div className="proposal-change" key={JSON.stringify(change.path)}>
+                                    <label className="proposal-change-select"><input type="checkbox" checked={selectedProposalPaths.includes(JSON.stringify(change.path))} onChange={(event) => toggleProposalChange(JSON.stringify(change.path), event.target.checked)} /> Incluir este cambio</label>
                                     <strong>{change.path.join(' › ')}</strong>
                                     <span className="helper">{change.category}</span>
                                     <p>{change.reason}</p>
@@ -1013,7 +1028,7 @@ function App(): React.JSX.Element {
                                     <pre>{change.remove ? '— Eliminar esta propiedad —' : JSON.stringify(change.value, null, 2)}</pre>
                                   </div>
                                 ))}
-                                <button className="secondary-button" onClick={applyProposalToDraft}>Aplicar al borrador local</button>
+                                <button className="secondary-button" onClick={() => void applyProposalToDraft()} disabled={selectedProposalPaths.length === 0}>Aplicar cambios seleccionados ({selectedProposalPaths.length}) al borrador local</button>
                                 <button className="secondary-button" onClick={() => { setProposalChanges([]); setProposalSuggestions([]) }}>Descartar propuesta</button>
                               </div>
                             )}
