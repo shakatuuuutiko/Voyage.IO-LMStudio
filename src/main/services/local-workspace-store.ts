@@ -90,7 +90,7 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
     const children = value !== null && typeof value === 'object' ? Object.entries(value) : []
     const terms = [current.key, current.path, previewOf(value)].join(' ').toLocaleLowerCase()
     nodes.push({
-      path: current.path || '/',
+      path: current.path,
       key: current.key,
       kind,
       preview: previewOf(value),
@@ -155,10 +155,11 @@ export async function recordTrackedIssue(input: {
   const now = new Date().toISOString()
   const path = input.path || ''
   const fingerprint = (issue: TrackedIssue): boolean =>
-    issue.source === input.source && issue.code === input.code && issue.path === path && issue.message === input.message
+    issue.source === input.source && issue.severity === input.severity && issue.code === input.code && issue.path === path && issue.message === input.message
   let issue = issues.find(fingerprint)
   if (issue) {
     issue.lastSeenAt = now
+    issue.severity = input.severity
     issue.occurrences += 1
     if (issue.status !== 'open' && issue.status !== 'investigating') issue.status = 'open'
     issue.history.push({ at: now, action: 'detected-again', detail: 'El mismo problema volvió a detectarse.' })
