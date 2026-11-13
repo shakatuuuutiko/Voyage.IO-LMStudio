@@ -515,3 +515,44 @@ button:disabled, select:disabled, textarea:disabled {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+
+.world-validation-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+}
+
+.world-validation-results {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.validation-issue {
+  padding: 10px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.validation-issue p {
+  margin: 6px 0;
+}
+
+.validation-issue code {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.8em;
+}
+
+.validation-error {
+  border-left: 3px solid #c65b5b;
+}
+
+.validation-warning {
+  border-left: 3px solid #c49a45;
+}
