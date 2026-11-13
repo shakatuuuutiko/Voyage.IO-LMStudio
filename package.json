@@ -1,10 +1,9 @@
 {
   "name": "voyage-io",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "Local LM Studio companion for managing Voyage Creator Studio worlds through the Creator API.",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "homepage": "https://github.com/shakatuuuutiko/Voyage.IO-LMStudio",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
