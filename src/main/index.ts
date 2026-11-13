@@ -73,7 +73,7 @@ ipcMain.handle('lmstudio:list-models', async () => {
 
 ipcMain.handle(
   'lmstudio:chat',
-  async (_event, payload: { model: string; prompt: string; maxTokens?: number }) => {
+  async (_event, payload: { model: string; prompt: string; maxTokens?: number; jsonMode?: boolean }) => {
     try {
       if (!payload || typeof payload.model !== 'string' || !payload.model.trim()) {
         throw new Error('Selecciona un modelo.')
@@ -89,7 +89,8 @@ ipcMain.handle(
         model: payload.model,
         messages: [{ role: 'user', content: payload.prompt }],
         max_tokens: maxTokens,
-        temperature: 0.7,
+        temperature: payload.jsonMode ? 0.2 : 0.7,
+        ...(payload.jsonMode ? { response_format: { type: 'json_object' } } : {}),
         stream: false
       })) as ChatResponse
 
