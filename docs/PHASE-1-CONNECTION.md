@@ -104,3 +104,18 @@ The application now exposes a read-only **Consultar mis mundos** action after a 
 - Do not share API keys or credential-bearing screenshots. The response itself should not contain the API key.
 
 After pulling the feature branch and starting the app, select **Consultar mis mundos**. If the request succeeds, copy the JSON response from the inspector and provide it for schema analysis. If it fails, provide only the HTTP status and sanitized error text.
+
+
+## Local AI proposal editor
+
+After a successful live draft validation, the renderer now supports a first safe proposal workflow:
+
+- Select one top-level `initialGameState` section whose value is a JSON object.
+- Enter a requested change. LM Studio receives only that selected section, not the complete world document.
+- The model must return JSON in the form `{"changes":[{"key":"propertyName","value":{},"reason":"..."}]}`; the renderer rejects malformed responses, duplicate keys, prototype-related keys, and proposals with more than 20 changes.
+- The review panel displays each proposed direct-property value and its reason before the user chooses **Aplicar al borrador local**.
+- Applying a proposal changes only the renderer's in-memory draft. It does not call Voyage and does not mutate the downloaded original snapshot.
+- **Descartar todos los cambios del borrador** restores the in-memory draft from the original downloaded `initialGameState`.
+- **Validar borrador (sin guardar)** validates the current draft, including locally applied proposals.
+
+This is intentionally a constrained first iteration: the model can replace or add direct properties inside one selected object section; it cannot issue arbitrary JSON paths or modify the world envelope, `shortId`, publication state, or other world metadata. Drafts are currently memory-only and are lost when the world is changed or the app is closed. There is still no Voyage PUT/save endpoint exposed, no persistent local snapshot store, and no automatic publication. A successful draft validation does not authorize a remote save.
