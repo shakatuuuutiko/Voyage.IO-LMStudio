@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
 interface VoyageWorldSummary {
-  id: string
   shortId: string
   title: string
   description?: string | null
@@ -393,6 +392,7 @@ function App(): React.JSX.Element {
                         <span>{world.visibility || 'Visibilidad desconocida'}</span>
                         <span>{world.published ? 'Publicado' : 'No publicado'}</span>
                         <span>{world.mods?.length ?? 0} mods</span>
+                        <span>Actualizado: {formatDate(world.updatedAt)}</span>
                       </div>
                       <button
                         className="secondary-button"
