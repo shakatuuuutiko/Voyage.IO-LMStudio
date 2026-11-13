@@ -1,3 +1,5 @@
+import type { EditableWorld, ReadWorldResult } from './types'
+
 export const VOYAGE_API_BASE_URL = 'https://api.aidungeon.com/creator/v1'
 
 export interface VoyageApiErrorDetails {
@@ -25,9 +27,30 @@ interface VoyageErrorPayload {
   requestId?: string
 }
 
+interface VoyageHttpResponse<T> {
+  data: T
+  headers: Headers
+  status: number
+}
+
 export interface VoyageConnectionResult {
   success: true
   message: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getRetryAfterSeconds(value: string | null): number | undefined {
+  if (!value) return undefined
+
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds
+
+  const date = Date.parse(value)
+  if (Number.isNaN(date)) return undefined
+  return Math.max(0, Math.ceil((date - Date.now()) / 1000))
 }
 
 export class VoyageCreatorClient {
@@ -36,7 +59,7 @@ export class VoyageCreatorClient {
     private readonly baseUrl = VOYAGE_API_BASE_URL
   ) {}
 
-  private async request<T>(path: string): Promise<T> {
+  private async request<T>(path: string): Promise<VoyageHttpResponse<T>> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
 
@@ -62,22 +85,23 @@ export class VoyageCreatorClient {
       }
 
       if (!response.ok) {
-        const errorPayload = (payload && typeof payload === 'object'
-          ? payload
-          : {}) as VoyageErrorPayload
-        const retryAfter = response.headers.get('Retry-After')
+        const errorPayload = (isRecord(payload) ? payload : {}) as VoyageErrorPayload
         throw new VoyageApiError(
           errorPayload.error?.message || `Voyage Creator API respondió HTTP ${response.status}.`,
           {
             status: response.status,
             code: errorPayload.error?.code,
             requestId: errorPayload.requestId,
-            retryAfterSeconds: retryAfter ? Number(retryAfter) : undefined
+            retryAfterSeconds: getRetryAfterSeconds(response.headers.get('Retry-After'))
           }
         )
       }
 
-      return payload as T
+      return {
+        data: payload as T,
+        headers: response.headers,
+        status: response.status
+      }
     } catch (error) {
       if (error instanceof VoyageApiError) throw error
       if (error instanceof Error && error.name === 'AbortError') {
@@ -94,13 +118,41 @@ export class VoyageCreatorClient {
   }
 
   async testConnection(): Promise<VoyageConnectionResult> {
-    // The API guide defines page as a zero-based optional query parameter.
-    // The response schema for the world list is intentionally not inferred here:
-    // a successful authenticated HTTP response is sufficient for a connection test.
+    // The list response is not fully described in OpenAPI; do not infer its shape.
     await this.request<unknown>('/worlds?page=0&type=world')
     return {
       success: true,
       message: 'Conexión autenticada con Voyage Creator API correcta.'
+    }
+  }
+
+  async readWorld(shortId: string): Promise<ReadWorldResult> {
+    if (!shortId.trim() || shortId.length > 256) {
+      throw new Error('El identificador del mundo no es válido.')
+    }
+
+    const response = await this.request<unknown>(
+      `/worlds/${encodeURIComponent(shortId.trim())}`
+    )
+
+    const envelope = isRecord(response.data) ? response.data : null
+    const data = envelope && isRecord(envelope.data) ? envelope.data : null
+    const candidate = data && isRecord(data.world) ? data.world : null
+
+    if (
+      !candidate ||
+      typeof candidate.shortId !== 'string' ||
+      typeof candidate.title !== 'string' ||
+      !isRecord(candidate.initialGameState)
+    ) {
+      throw new Error(
+        'Voyage respondió correctamente, pero el documento no coincide con el formato data.world esperado por la guía oficial. No se modificó ningún dato.'
+      )
+    }
+
+    return {
+      world: candidate as unknown as EditableWorld,
+      etag: response.headers.get('ETag')
     }
   }
 }
