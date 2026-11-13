@@ -134,7 +134,7 @@ function summarizeForAI(
   if (isRecord(value)) {
     const entries = Object.entries(value)
     const result: Record<string, unknown> = {}
-    const keyLimit = depth < 2 ? 30 : 18
+    const keyLimit = depth === 0 ? 100 : depth === 1 ? 30 : 18
     for (const [key, item] of entries.slice(0, keyLimit)) {
       if (budget.remaining <= 100) break
       budget.remaining -= key.length + 4
@@ -738,7 +738,7 @@ function App(): React.JSX.Element {
                               <strong>PROPUESTAS DE IA LOCAL</strong>
                               <span>BORRADOR EN MEMORIA</span>
                             </div>
-                            <p className="helper">Describe libremente el resultado que buscas. La IA analizará el GameState completo, decidirá qué secciones deben intervenir y propondrá cambios coordinados. También puedes pedir recomendaciones sin escribir una instrucción.</p>
+                            <p className="helper">Describe libremente el resultado que buscas. La IA resumirá la estructura del mundo, seleccionará las secciones relevantes y analizará su contenido para proponer cambios coordinados. También puedes pedir recomendaciones sin escribir una instrucción.</p>
                             <label htmlFor="proposal-request">¿Qué quieres conseguir?</label>
                             <textarea id="proposal-request" ref={proposalRequestInput} rows={4}
                               placeholder="Ej.: Quiero facciones más dinámicas, con territorios, jerarquías, relaciones y evolución..."
