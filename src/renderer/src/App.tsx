@@ -420,11 +420,50 @@ function App(): React.JSX.Element {
       ].filter(Boolean).join('\n')
       const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       if (!result.success || !result.content) throw new Error(result.error || 'El modelo no devolvió una propuesta.')
-      setProposalRawResponse(result.content)
-      if (result.finishReason === 'length') throw new Error('LM Studio truncó la respuesta. Aumenta el presupuesto de tokens e inténtalo de nuevo.')
+      if (result.finishReason === 'length') {
+        setProposalRawResponse(result.content)
+        throw new Error('LM Studio truncó la respuesta. Aumenta el presupuesto de tokens e inténtalo de nuevo.')
+      }
+
+      // Algunos modelos locales generan JSON casi válido, pero omiten cierres de arrays
+      // o mezclan campos del objeto dentro de path. No intentamos reparar eso con regex:
+      // pedimos al mismo modelo una normalización y luego validamos las rutas contra el GameState.
+      let proposalContent = result.content
       let parsed: unknown
-      try { parsed = JSON.parse(result.content.trim()) }
-      catch { parsed = JSON.parse(extractJsonObject(result.content)) }
+      try {
+        try { parsed = JSON.parse(proposalContent.trim()) }
+        catch { parsed = JSON.parse(extractJsonObject(proposalContent)) }
+      } catch (initialParseError) {
+        const repairPrompt = [
+          'Actúa exclusivamente como reparador de JSON. La respuesta siguiente contiene una propuesta con sintaxis JSON defectuosa.',
+          'Reconstruye el JSON conservando exactamente la intención y los datos que sí aparecen. No añadas cambios, campos, rutas ni recomendaciones nuevas.',
+          'Devuelve únicamente un objeto JSON válido, sin Markdown ni explicaciones.',
+          'Estructura obligatoria: {"changes":[{"path":["claveRaiz","propiedad","campo"],"value": cualquierValorJSON,"reason":"texto","category":"mejora|reparación|contenido|coherencia|balance|sistema"},{"path":["claveRaiz","propiedad"],"remove":true,"reason":"texto","category":"reparación"}],"suggestions":[{"title":"texto","detail":"texto","priority":"alta|media|baja"}]}.',
+          'IMPORTANTE: path siempre es un array de strings cerrado antes de value, remove, reason o category. value es un valor JSON independiente. No conviertas nombres de campos en propiedades de path sin incluirlos dentro del array.',
+          'Si un cambio está demasiado dañado para reconstruirlo sin adivinar, omite ese cambio. Conserva las sugerencias que puedas recuperar.',
+          'RESPUESTA ORIGINAL DEFECTUOSA:',
+          proposalContent
+        ].join('\\n')
+        const repairResult = await window.api.lmStudio.chat({
+          model: selectedModel,
+          prompt: repairPrompt,
+          maxTokens: Math.max(2048, Math.min(8192, Number(maxTokens) || 4096)),
+          jsonMode: true
+        })
+        if (!repairResult.success || !repairResult.content) {
+          setProposalRawResponse(proposalContent)
+          throw new Error('La respuesta JSON era inválida y LM Studio no pudo repararla. ' + (repairResult.error || ''))
+        }
+        if (repairResult.finishReason === 'length') {
+          setProposalRawResponse('RESPUESTA ORIGINAL:\\n' + proposalContent + '\\n\\nINTENTO DE REPARACIÓN TRUNCADO:\\n' + repairResult.content)
+          throw new Error('El intento de reparación también quedó truncado. Reduce la complejidad de la propuesta o aumenta el presupuesto de salida.')
+        }
+        proposalContent = repairResult.content
+        setProposalRawResponse('RESPUESTA ORIGINAL (JSON INVÁLIDO):\\n' + result.content + '\\n\\nRESPUESTA NORMALIZADA POR LM STUDIO:\\n' + repairResult.content)
+        try { parsed = JSON.parse(proposalContent.trim()) }
+        catch { parsed = JSON.parse(extractJsonObject(proposalContent)) }
+      }
+      if (!proposalRawResponse) setProposalRawResponse(result.content)
       if (!isRecord(parsed) || !Array.isArray(parsed.changes) || parsed.changes.length > 30) {
         throw new Error('La respuesta no respeta el formato esperado (changes, máximo 30).')
       }
