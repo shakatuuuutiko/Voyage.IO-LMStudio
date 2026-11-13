@@ -417,7 +417,7 @@ function App(): React.JSX.Element {
         'SECCIONES SELECCIONADAS: ' + selectedKeys.join(', '),
         'RESUMEN DE LAS SECCIONES (las rutas corresponden a las claves originales):',
         JSON.stringify(focusedWorld)
-      ].filter(Boolean).join('\\n')
+      ].filter(Boolean).join('\n')
       const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       if (!result.success || !result.content) throw new Error(result.error || 'El modelo no devolvió una propuesta.')
       setProposalRawResponse(result.content)
