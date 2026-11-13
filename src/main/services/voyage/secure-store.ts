@@ -9,7 +9,8 @@ function getKeyFilePath(): string {
 }
 
 export function isVoyageCredentialEncryptionAvailable(): boolean {
-  return safeStorage.isEncryptionAvailable()
+  if (!safeStorage.isEncryptionAvailable()) return false
+  return safeStorage.getSelectedStorageBackend() !== 'basic_text'
 }
 
 export async function saveVoyageApiKey(apiKey: string): Promise<void> {
