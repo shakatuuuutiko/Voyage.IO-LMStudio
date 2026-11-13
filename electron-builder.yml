@@ -36,7 +36,7 @@ linux:
   maintainer: electronjs.org
   category: Utility
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${productName}-${version}.${ext}
 npmRebuild: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
