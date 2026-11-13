@@ -60,7 +60,11 @@ function App(): React.JSX.Element {
   const [selectedWorldTitle, setSelectedWorldTitle] = useState('')
   const [selectedWorldEtag, setSelectedWorldEtag] = useState<string | null>(null)
   const [selectedWorldJson, setSelectedWorldJson] = useState('')
+  const [selectedWorldInitialGameState, setSelectedWorldInitialGameState] = useState<Record<string, unknown> | null>(null)
   const [worldReadBusy, setWorldReadBusy] = useState(false)
+  const [worldValidationBusy, setWorldValidationBusy] = useState(false)
+  const [worldValidation, setWorldValidation] = useState<{ valid: boolean; errors: Array<{ code: string; message: string; path: string }>; warnings: Array<{ code: string; message: string; path: string }>; requestId: string } | null>(null)
+  const [worldValidationError, setWorldValidationError] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
 
   async function loadModels(): Promise<void> {
@@ -183,11 +187,30 @@ function App(): React.JSX.Element {
         throw new Error(result.error || 'No se pudo descargar el documento del mundo.')
       }
       setSelectedWorldEtag(result.etag ?? null)
+      setSelectedWorldInitialGameState(result.world.initialGameState)
+      setWorldValidation(null)
+      setWorldValidationError('')
       setSelectedWorldJson(JSON.stringify(result.world, null, 2))
     } catch (error) {
       setSelectedWorldJson(error instanceof Error ? error.message : 'Error al leer el mundo.')
     } finally {
       setWorldReadBusy(false)
+    }
+  }
+
+  async function validateSelectedWorld(): Promise<void> {
+    if (!selectedWorldInitialGameState || worldValidationBusy) return
+    setWorldValidationBusy(true)
+    setWorldValidation(null)
+    setWorldValidationError('')
+    try {
+      const result = await window.api.voyage.validateDraft(selectedWorldInitialGameState)
+      if (!result.success || !result.validation) throw new Error(result.error || 'Voyage no devolvió el resultado de validación.')
+      setWorldValidation(result.validation)
+    } catch (error) {
+      setWorldValidationError(error instanceof Error ? error.message : 'Error al validar el borrador.')
+    } finally {
+      setWorldValidationBusy(false)
     }
   }
 
@@ -414,6 +437,31 @@ function App(): React.JSX.Element {
                     <p className="helper">ETag: {selectedWorldEtag || 'Voyage no devolvió ETag'}</p>
                     {worldReadBusy && <p className="helper">Descargando documento completo...</p>}
                     {selectedWorldJson && <pre>{selectedWorldJson}</pre>}
+                    {selectedWorldInitialGameState && (
+                      <div className="world-validation-panel">
+                        <button className="secondary-button" onClick={() => void validateSelectedWorld()} disabled={worldValidationBusy || worldReadBusy}>
+                          {worldValidationBusy ? 'Validando borrador...' : 'Validar borrador (sin guardar)'}
+                        </button>
+                        {worldValidationError && <p className="helper security-warning" role="alert">{worldValidationError}</p>}
+                        {worldValidation && (
+                          <div className="world-validation-results" role="status">
+                            <strong>{worldValidation.valid ? 'Validación correcta' : 'Se encontraron errores'}</strong>
+                            <p className="helper">Errores: {worldValidation.errors.length} · Advertencias: {worldValidation.warnings.length}</p>
+                            <p className="helper">requestId: {worldValidation.requestId}</p>
+                            {worldValidation.errors.map((issue, index) => (
+                              <div className="validation-issue validation-error" key={index}>
+                                <strong>{issue.code}</strong><p>{issue.message}</p><code>{issue.path}</code>
+                              </div>
+                            ))}
+                            {worldValidation.warnings.map((issue, index) => (
+                              <div className="validation-issue validation-warning" key={index}>
+                                <strong>{issue.code}</strong><p>{issue.message}</p><code>{issue.path}</code>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
