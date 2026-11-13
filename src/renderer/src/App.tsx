@@ -468,12 +468,18 @@ function App(): React.JSX.Element {
         : 'Sin resultados de validación.'
       const sectionKeys = Object.keys(selectedWorldDraft)
       const structuralSummary = summarizeForAI(selectedWorldDraft)
+      const retrievalText = mode === 'repair' ? validationContext : mode === 'recommend' ? 'factions locations NPCs skills resources items quests combat progression settings world lore' : userRequest
+      const retrievalTerms = [...new Set((retrievalText.toLocaleLowerCase().match(/[\\p{L}\\p{N}_-]{4,}/gu) || []).slice(0, 10))].join(' ')
+      const indexLookup = await window.api.workspace.searchIndex({ worldId: selectedWorldId, query: retrievalTerms, limit: 80 })
+      const indexMatches = indexLookup.success ? indexLookup.results.slice(0, 35) : []
+      const indexedRootKeys = [...new Set(indexMatches.map((item) => item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~')).filter((key): key is string => Boolean(key) && sectionKeys.includes(key)))]
       const selectionPrompt = [
         'Eres un analista de mundos de Voyage Creator Studio.',
         'Elige las secciones raíz más relevantes para esta tarea. Devuelve solo JSON: {"sections":["claveRaiz"],"reason":"motivo breve"}.',
         'Elige entre 1 y 5 claves EXACTAS de la lista disponible. No inventes nombres. No selecciones todo.',
         'Claves disponibles: ' + JSON.stringify(sectionKeys),
         'TAREA: ' + task,
+        'PISTAS DEL ÍNDICE LOCAL (rutas y fragmentos recuperados por búsqueda; prioriza estas secciones si son pertinentes): ' + JSON.stringify({ indexedRootKeys, matches: indexMatches }),
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
         'RESUMEN ESTRUCTURAL DEL MUNDO: ' + JSON.stringify(structuralSummary)
@@ -507,6 +513,7 @@ function App(): React.JSX.Element {
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
         'SECCIONES SELECCIONADAS: ' + selectedKeys.join(', '),
+        'FRAGMENTOS RECUPERADOS DEL ÍNDICE LOCAL: ' + JSON.stringify(indexMatches.filter((item) => selectedKeys.includes(item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~') || '')).slice(0, 25)),
         'RESUMEN DE LAS SECCIONES (las rutas corresponden a las claves originales):',
         JSON.stringify(focusedWorld)
       ].filter(Boolean).join('\n')
