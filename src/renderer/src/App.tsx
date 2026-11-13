@@ -526,6 +526,8 @@ function App(): React.JSX.Element {
         'No generes cambios de eliminación; si un campo debe retirarse, deja changes vacío y explícalo en suggestions.',
         'Los paths deben señalar ubicaciones reales visibles en el resumen. No uses __summary_omitted_keys ni inventes campos. Los arrays muestran solo sus primeros elementos; usa únicamente índices visibles.',
         'El padre de cada ruta debe existir en el GameState original. No inventes propiedades raíz, campos de configuración ni identificadores.',
+        'Conserva exactamente el tipo JSON original de cada campo: number debe seguir siendo number sin comillas, boolean debe seguir siendo boolean, string debe seguir siendo string, array y object deben conservar su estructura. Nunca serialices números como cadenas.',
+        'No inventes niveles, claves ni rutas anidadas. Antes de proponer un path, comprueba que todos sus segmentos padre existen literalmente en los datos recibidos. Si no puedes verificarlo, omite ese cambio.',
         'Conserva tipos, estructuras, IDs y convenciones. No conviertas etiquetas descriptivas en IDs. No reemplaces arrays completos salvo necesidad demostrable.',
         'No uses segmentos "__proto__", "prototype" ni "constructor". Máximo 30 cambios y 8 sugerencias. Evita duplicar cambios ya presentes.',
         'Prioriza propuestas pequeñas, coherentes y verificables. Si la información resumida no basta para proponer un cambio seguro, deja changes vacío y explica la limitación en suggestions.',
@@ -587,25 +589,34 @@ function App(): React.JSX.Element {
       if (!isRecord(parsed) || !Array.isArray(parsed.changes) || parsed.changes.length > 30) {
         throw new Error('La respuesta no respeta el formato esperado (changes, máximo 30).')
       }
+      const rejectedChanges: string[] = []
+      let ignoredTypeChanges = 0
       const changes = parsed.changes.map((item, index): ProposalChange | null => {
+        const reject = (reason: string): null => {
+          rejectedChanges.push(`Cambio ${index + 1}: ${reason}`)
+          return null
+        }
         if (!isRecord(item) || typeof item.path !== 'string' || !item.path.startsWith('/') ||
           typeof item.reason !== 'string' || !Object.prototype.hasOwnProperty.call(item, 'value')) {
-          throw new Error(`El cambio ${index + 1} tiene una ruta o estructura no permitida. Se esperaba path como JSON Pointer de texto y value como propiedad independiente.`)
+          return reject('estructura no permitida; se esperaba un JSON Pointer y value como propiedad independiente.')
         }
         const path = item.path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
         if (path.length === 0 || path.some((part) => !part || ['__proto__', 'prototype', 'constructor'].includes(part))) {
-          throw new Error(`El cambio ${index + 1} contiene un JSON Pointer vacío o no permitido.`)
+          return reject('JSON Pointer vacío o no permitido.')
         }
         const parent = readPath(selectedWorldDraft, path.slice(0, -1))
         if (!parent.exists || (!isRecord(parent.value) && !Array.isArray(parent.value))) {
-          throw new Error(`La ruta del cambio ${index + 1} apunta a una sección inexistente o no editable: ${path.join('.')}`)
+          return reject(`ruta inexistente o no editable: ${path.join('.')}`)
         }
         const current = readPath(selectedWorldDraft, path)
         const leaf = path[path.length - 1]
-        if (Array.isArray(parent.value) && (!/^\d+$/.test(leaf) || Number(leaf) > parent.value.length)) {
-          throw new Error(`El cambio ${index + 1} contiene un índice de array no permitido: ${path.join('.')}`)
+        if (Array.isArray(parent.value) && (!/^\\d+$/.test(leaf) || Number(leaf) > parent.value.length)) {
+          return reject(`índice de array no permitido: ${path.join('.')}`)
         }
-        if (current.exists && getProposalValueKind(current.value) !== getProposalValueKind(item.value)) return null
+        if (current.exists && getProposalValueKind(current.value) !== getProposalValueKind(item.value)) {
+          ignoredTypeChanges += 1
+          return null
+        }
         return { path, value: item.value, previousValue: current.value, existed: current.exists,
           reason: item.reason, category: typeof item.category === 'string' ? item.category : 'modificación', remove: false }
       })
@@ -613,7 +624,6 @@ function App(): React.JSX.Element {
       const effectiveChanges = typedChanges.filter((change) =>
         !change.existed || JSON.stringify(change.previousValue) !== JSON.stringify(change.value)
       )
-      const ignoredTypeChanges = changes.length - typedChanges.length
       const ignoredNoOpChanges = typedChanges.length - effectiveChanges.length
       const pathKeys = effectiveChanges.map((change) => JSON.stringify(change.path))
       if (new Set(pathKeys).size !== pathKeys.length) throw new Error('La propuesta repite rutas.')
@@ -621,7 +631,8 @@ function App(): React.JSX.Element {
       setSelectedProposalPaths([])
       const ignoredMessages = [
         ignoredTypeChanges ? `${ignoredTypeChanges} cambio(s) descartado(s) por incompatibilidad de tipo` : '',
-        ignoredNoOpChanges ? `${ignoredNoOpChanges} cambio(s) descartado(s) porque no modificaban el valor` : ''
+        ignoredNoOpChanges ? `${ignoredNoOpChanges} cambio(s) descartado(s) porque no modificaban el valor` : '',
+        rejectedChanges.length ? `${rejectedChanges.length} cambio(s) descartado(s) por ruta o estructura inválida: ${rejectedChanges.slice(0, 4).join(' | ')}` : ''
       ].filter(Boolean)
       setProposalInfo(ignoredMessages.length ? 'Control automático: ' + ignoredMessages.join('; ') + '.' : '')
       const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions : []
