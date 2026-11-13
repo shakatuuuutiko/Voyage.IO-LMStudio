@@ -36,6 +36,8 @@ function parseWorldList(value: unknown): { worlds: VoyageWorldSummary[]; totalCo
 interface ProposalChange {
   key: string
   value: unknown
+  previousValue: unknown
+  existed: boolean
   reason: string
 }
 
@@ -301,7 +303,13 @@ function App(): React.JSX.Element {
         ) {
           throw new Error(`El cambio ${index + 1} tiene una estructura no permitida.`)
         }
-        return { key: item.key, value: item.value, reason: item.reason }
+        return {
+          key: item.key,
+          value: item.value,
+          previousValue: section[item.key],
+          existed: Object.prototype.hasOwnProperty.call(section, item.key),
+          reason: item.reason
+        }
       })
       if (new Set(changes.map((change) => change.key)).size !== changes.length) {
         throw new Error('La propuesta repite propiedades. Solicita una nueva propuesta sin claves duplicadas.')
@@ -608,6 +616,9 @@ function App(): React.JSX.Element {
                                   <div className="proposal-change" key={change.key}>
                                     <strong>{change.key}</strong>
                                     <p>{change.reason}</p>
+                                    <span className="helper">Valor actual{change.existed ? '' : ' (propiedad nueva)'}</span>
+                                    <pre>{change.existed ? JSON.stringify(change.previousValue, null, 2) : '— No existe actualmente —'}</pre>
+                                    <span className="helper">Valor propuesto</span>
                                     <pre>{JSON.stringify(change.value, null, 2)}</pre>
                                   </div>
                                 ))}
