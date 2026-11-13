@@ -656,3 +656,94 @@ button:disabled, select:disabled, textarea:disabled {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Large world documents and model output must never expand the HUD grid. */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root, .app-shell, .workspace {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.workspace > *,
+.sidebar,
+.chat-area,
+.voyage-world-browser,
+.world-detail-panel,
+.world-validation-panel,
+.proposal-editor,
+.proposal-review,
+.proposal-change {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.world-detail-panel,
+.world-validation-panel,
+.proposal-editor,
+.proposal-review,
+.proposal-change {
+  overflow-wrap: anywhere;
+}
+
+.world-detail-panel pre,
+.proposal-change pre,
+.proposal-raw-response pre,
+.world-list-inspector pre {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  overscroll-behavior: contain;
+  tab-size: 2;
+}
+
+.world-json-inspector {
+  max-height: min(55vh, 620px) !important;
+  font-size: 10px !important;
+  line-height: 1.45;
+}
+
+.proposal-editor textarea {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.panel input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.panel input[type="number"]::-webkit-inner-spin-button,
+.panel input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+@media (max-width: 950px) {
+  .workspace {
+    grid-template-columns: minmax(210px, 235px) minmax(0, 1fr);
+  }
+}
+
+@media (max-height: 700px) {
+  .sidebar {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .chat-area {
+    padding-top: 16px;
+  }
+}
+
