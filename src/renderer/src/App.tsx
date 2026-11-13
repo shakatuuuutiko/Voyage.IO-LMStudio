@@ -31,7 +31,7 @@ function extractJsonObject(raw: string): string {
     const char = raw[index]
     if (inString) {
       if (escaped) escaped = false
-      else if (char === '\\\\') escaped = true
+      else if (char === '\\') escaped = true
       else if (char === '"') inString = false
       continue
     }
@@ -650,7 +650,7 @@ function App(): React.JSX.Element {
                             {proposalChanges.length > 0 && (
                               <div className="proposal-review">
                                 <strong>Revisión de propuesta · {proposalChanges.length} cambios</strong>
-                                {proposalChanges.map((change, index) => (
+                                {proposalChanges.map((change) => (
                                   <div className="proposal-change" key={change.key}>
                                     <strong>{change.key}</strong>
                                     <p>{change.reason}</p>
