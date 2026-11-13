@@ -103,7 +103,13 @@ ipcMain.handle(
         // Reintentar una sola vez sin modo JSON evita que esa limitación bloquee la generación.
         if (!payload.jsonMode || !message.includes('HTTP 400')) throw error
 
-        const { response_format: _unsupportedFormat, ...compatibleBody } = requestBody
+        const compatibleBody = {
+          model: requestBody.model,
+          messages: requestBody.messages,
+          max_tokens: requestBody.max_tokens,
+          temperature: requestBody.temperature,
+          stream: requestBody.stream
+        }
         result = (await lmRequest('/v1/chat/completions', compatibleBody)) as ChatResponse
       }
 
