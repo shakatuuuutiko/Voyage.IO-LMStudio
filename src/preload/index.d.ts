@@ -70,6 +70,36 @@ interface VoyageStatusResult {
   error?: string
 }
 
+
+interface WorldIndexSummary {
+  schemaVersion: 1
+  worldId: string
+  generatedAt: string
+  nodeCount: number
+  rootKeys: string[]
+}
+interface WorldIndexSearchResult {
+  path: string
+  key: string
+  kind: string
+  preview: string
+  childCount: number
+}
+interface TrackedIssue {
+  id: string
+  worldId: string
+  source: 'voyage-validation' | 'lm-studio' | 'application' | 'user'
+  severity: 'error' | 'warning' | 'notice'
+  code: string
+  message: string
+  path: string
+  status: 'open' | 'investigating' | 'fixed-pending-validation' | 'resolved' | 'false-positive'
+  firstSeenAt: string
+  lastSeenAt: string
+  occurrences: number
+  history: Array<{ at: string; action: string; detail: string }>
+}
+
 interface AppAPI {
   lmStudio: {
     listModels: () => Promise<LMStudioModelResult>
@@ -79,6 +109,14 @@ interface AppAPI {
       maxTokens?: number
       jsonMode?: boolean
     }) => Promise<LMStudioChatResult>
+  }
+  workspace: {
+    buildIndex: (payload: { worldId: string; gameState: Record<string, unknown> }) => Promise<{ success: boolean; index?: WorldIndexSummary; error?: string }>
+    readIndex: (worldId: string) => Promise<{ success: boolean; index?: WorldIndexSummary | null; error?: string }>
+    searchIndex: (payload: { worldId: string; query: string; limit?: number }) => Promise<{ success: boolean; results: WorldIndexSearchResult[]; error?: string }>
+    listIssues: (worldId: string) => Promise<{ success: boolean; issues: TrackedIssue[]; error?: string }>
+    recordIssue: (payload: { worldId: string; source: TrackedIssue['source']; severity: TrackedIssue['severity']; code: string; message: string; path?: string }) => Promise<{ success: boolean; issue?: TrackedIssue; error?: string }>
+    updateIssue: (payload: { worldId: string; issueId: string; status: TrackedIssue['status']; detail?: string }) => Promise<{ success: boolean; issues?: TrackedIssue[]; error?: string }>
   }
   voyage: {
     getStatus: () => Promise<VoyageStatusResult>
