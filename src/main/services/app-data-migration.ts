@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { access, rename } from 'fs/promises'
+import { access, readdir, rename, rm } from 'fs/promises'
 import { join, resolve } from 'path'
 
 async function pathExists(path: string): Promise<boolean> {
@@ -18,8 +18,7 @@ async function pathExists(path: string): Promise<boolean> {
  */
 export async function migrateUserDataDirectory(): Promise<void> {
   const currentDirectory = app.getPath('userData')
-  if (await pathExists(currentDirectory)) return
-
+  const currentExists = await pathExists(currentDirectory)
   const appDataDirectory = app.getPath('appData')
   const legacyDirectoryNames = ['Voyage AI Companion', 'voyage-io', 'voyage-ai-companion']
 
@@ -29,6 +28,11 @@ export async function migrateUserDataDirectory(): Promise<void> {
     if (!(await pathExists(legacyDirectory))) continue
 
     try {
+      if (currentExists) {
+        const currentEntries = await readdir(currentDirectory)
+        if (currentEntries.length > 0) return
+        await rm(currentDirectory, { recursive: true, force: true })
+      }
       await rename(legacyDirectory, currentDirectory)
       return
     } catch (error) {
