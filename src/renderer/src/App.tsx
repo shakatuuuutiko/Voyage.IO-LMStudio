@@ -977,14 +977,15 @@ function App(): React.JSX.Element {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo generar la propuesta.'
+      const failureSummary = [previousAttemptFailure, 'Intento ' + attempt + ': ' + message].filter(Boolean).join(' | ')
       if (mode === 'recommend' && attempt < 3) {
         setProposalInfo('No se obtuvo una recomendación utilizable en el intento ' + attempt + '/3. Reintentando automáticamente. Motivo: ' + message)
-        await generateWorldProposal('recommend', undefined, attempt + 1, message)
+        await generateWorldProposal('recommend', undefined, attempt + 1, failureSummary)
         return
       }
       const exhausted = mode === 'recommend' && attempt >= 3
       const finalMessage = exhausted
-        ? 'No fue posible generar recomendaciones utilizables tras 3 intentos. Último motivo: ' + message + '. Revisa la conexión y el modelo seleccionado en LM Studio; también puedes pedir una sección concreta mediante «Proponer cambios».'
+        ? 'No fue posible generar recomendaciones utilizables tras 3 intentos. Informe de fallos: ' + failureSummary + '. Revisa la conexión y el modelo seleccionado en LM Studio; también puedes pedir una sección concreta mediante «Proponer cambios».'
         : message
       setProposalError(finalMessage)
       if (selectedWorldId) {
