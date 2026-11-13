@@ -192,6 +192,59 @@ function summarizeForAI(
   }
   return String(value)
 }
+interface ProposalDiffEntry {
+  path: string
+  before: string
+  after: string
+}
+
+function buildProposalDiff(before: unknown, after: unknown, maxEntries = 12): ProposalDiffEntry[] {
+  const entries: ProposalDiffEntry[] = []
+  const visit = (left: unknown, right: unknown, path: string, depth: number): void => {
+    if (entries.length >= maxEntries || JSON.stringify(left) === JSON.stringify(right)) return
+    if (depth < 4 && isRecord(left) && isRecord(right)) {
+      const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])]
+      for (const key of keys) {
+        if (entries.length >= maxEntries) break
+        const hasLeft = Object.prototype.hasOwnProperty.call(left, key)
+        const hasRight = Object.prototype.hasOwnProperty.call(right, key)
+        visit(hasLeft ? left[key] : '[propiedad ausente]', hasRight ? right[key] : '[propiedad eliminada]', path ? path + '.' + key : key, depth + 1)
+      }
+      return
+    }
+    if (depth < 4 && Array.isArray(left) && Array.isArray(right)) {
+      const length = Math.max(left.length, right.length)
+      for (let index = 0; index < length && entries.length < maxEntries; index += 1) {
+        visit(index < left.length ? left[index] : '[posición ausente]', index < right.length ? right[index] : '[posición eliminada]', path + '[' + index + ']', depth + 1)
+      }
+      if (left.length !== right.length && entries.length < maxEntries) entries.push({ path: path + '.length', before: String(left.length), after: String(right.length) })
+      return
+    }
+    const render = (value: unknown): string => {
+      if (typeof value === 'string') return value.length > 180 ? value.slice(0, 180) + '…' : value
+      const serialized = JSON.stringify(value)
+      return serialized === undefined ? String(value) : serialized.length > 180 ? serialized.slice(0, 180) + '…' : serialized
+    }
+    entries.push({ path: path || '(valor)', before: render(left), after: render(right) })
+  }
+  visit(before, after, '', 0)
+  return entries
+}
+
+function assessProposalRisk(change: ProposalChange): { level: 'alto' | 'medio' | 'bajo'; reason: string } {
+  const path = change.path.join('/').toLocaleLowerCase()
+  if (/permission|security|auth|owner|admin|access|role|damage|health|death|combat|reward|currency|economy|spawn|drop|chance|probability|multiplier|rate/.test(path)) {
+    return { level: 'alto', reason: 'La ruta afecta permisos, seguridad o una mecánica sensible del juego.' }
+  }
+  if (isRecord(change.previousValue) || isRecord(change.value) || Array.isArray(change.previousValue) || Array.isArray(change.value)) {
+    return { level: 'alto', reason: 'El cambio altera una estructura completa y puede afectar datos dependientes.' }
+  }
+  if (typeof change.previousValue === 'number' || typeof change.value === 'number') {
+    return { level: 'medio', reason: 'Modifica un valor numérico; revisa límites, unidades y efectos de balance.' }
+  }
+  return { level: 'bajo', reason: 'Cambio escalar de texto o booleano; requiere validación aunque su riesgo estimado sea menor.' }
+}
+
 function formatDate(value?: string): string {
   if (!value) return 'No disponible'
   const date = new Date(value)
@@ -1153,7 +1206,19 @@ function App(): React.JSX.Element {
                                       <button className="proposal-reject-button" type="button" onClick={() => discardProposalChange(JSON.stringify(change.path))}>Rechazar</button>
                                     </div>
                                     <span className="helper">{change.category}</span>
+                                    <span className={`proposal-risk ${assessProposalRisk(change).level}`}>Riesgo estimado: {assessProposalRisk(change).level.toUpperCase()}</span>
+                                    <p className="helper">{assessProposalRisk(change).reason}</p>
                                     <p>{change.reason}</p>
+                                    <div className="proposal-diff">
+                                      <strong>Diferencias detectadas</strong>
+                                      {buildProposalDiff(change.existed ? change.previousValue : '[propiedad nueva]', change.value).map((entry, index) => (
+                                        <div className="proposal-diff-row" key={entry.path + index}>
+                                          <code>{entry.path}</code>
+                                          <span className="proposal-diff-before">{entry.before}</span>
+                                          <span className="proposal-diff-after">{entry.after}</span>
+                                        </div>
+                                      ))}
+                                    </div>
                                     <span className="helper">Valor actual{change.existed ? '' : ' (propiedad nueva)'}</span>
                                     <pre>{change.existed ? JSON.stringify(change.previousValue, null, 2) : '— No existe actualmente —'}</pre>
                                     <span className="helper">Valor propuesto</span>
