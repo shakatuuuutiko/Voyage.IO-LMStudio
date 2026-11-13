@@ -608,7 +608,7 @@ function App(): React.JSX.Element {
     }
   }
 
-  function discardDraftChanges(): void {
+  async function discardDraftChanges(): Promise<void> {
     if (!selectedWorldInitialGameState) return
     const restored = JSON.parse(JSON.stringify(selectedWorldInitialGameState)) as Record<string, unknown>
     setSelectedWorldDraft(restored)
