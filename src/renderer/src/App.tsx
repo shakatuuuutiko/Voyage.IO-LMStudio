@@ -365,7 +365,7 @@ function App(): React.JSX.Element {
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
         'RESUMEN ESTRUCTURAL DEL MUNDO: ' + JSON.stringify(structuralSummary)
-      ].filter(Boolean).join('\\n')
+      ].filter(Boolean).join('\n')
       const selectionResult = await window.api.lmStudio.chat({
         model: selectedModel, prompt: selectionPrompt, maxTokens: Math.min(2048, Number(maxTokens) || 4096), jsonMode: true
       })
@@ -395,7 +395,6 @@ function App(): React.JSX.Element {
         'RESUMEN DE LAS SECCIONES (las rutas corresponden a las claves originales):',
         JSON.stringify(focusedWorld)
       ].filter(Boolean).join('\\n')
-      const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       if (!result.success || !result.content) throw new Error(result.error || 'El modelo no devolvió una propuesta.')
       setProposalRawResponse(result.content)
