@@ -173,7 +173,7 @@ export async function getRelatedWorldNodes(worldId: string, paths: string[], lim
   const index = await readWorldIndex(worldId)
   if (!index) return []
   const requestedPaths = new Set(paths.filter((path) => typeof path === 'string'))
-  const nodeByPath = new Map(index.nodes.map((node) => [node.path, node]))
+  const nodeByPath = new Map<string, WorldIndexNode>(index.nodes.map((node) => [node.path, node] as const))
   const results: Array<{ matchedPath: string; direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }> = []
   for (const relationship of index.relationships) {
     if (requestedPaths.has(relationship.sourcePath)) {
