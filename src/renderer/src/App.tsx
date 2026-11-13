@@ -271,6 +271,7 @@ function App(): React.JSX.Element {
   const [selectedWorldId, setSelectedWorldId] = useState('')
   const [selectedWorldTitle, setSelectedWorldTitle] = useState('')
   const [selectedWorldEtag, setSelectedWorldEtag] = useState<string | null>(null)
+  const [selectedWorldDocument, setSelectedWorldDocument] = useState<Record<string, unknown> | null>(null)
   const [selectedWorldJson, setSelectedWorldJson] = useState('')
   const [selectedWorldInitialGameState, setSelectedWorldInitialGameState] = useState<Record<string, unknown> | null>(null)
   const [selectedWorldDraft, setSelectedWorldDraft] = useState<Record<string, unknown> | null>(null)
@@ -394,6 +395,7 @@ function App(): React.JSX.Element {
       setSelectedWorldId('')
       setSelectedWorldTitle('')
       setSelectedWorldEtag(null)
+      setSelectedWorldDocument(null)
       setSelectedWorldJson('')
       setSelectedWorldInitialGameState(null)
       setSelectedWorldDraft(null)
@@ -417,6 +419,7 @@ function App(): React.JSX.Element {
     setSelectedWorldId(world.shortId)
     setSelectedWorldTitle(world.title)
     setSelectedWorldEtag(null)
+    setSelectedWorldDocument(null)
     setSelectedWorldJson('')
     setSelectedWorldInitialGameState(null)
     setSelectedWorldDraft(null)
@@ -439,6 +442,7 @@ function App(): React.JSX.Element {
         throw new Error(result.error || 'No se pudo descargar el documento del mundo.')
       }
       setSelectedWorldEtag(result.etag ?? null)
+      setSelectedWorldDocument(JSON.parse(JSON.stringify(result.world)) as Record<string, unknown>)
       setSelectedWorldInitialGameState(result.world.initialGameState)
       setIndexBusy(true)
       try {
@@ -467,6 +471,72 @@ function App(): React.JSX.Element {
       setSelectedWorldJson(error instanceof Error ? error.message : 'Error al leer el mundo.')
     } finally {
       setWorldReadBusy(false)
+    }
+  }
+
+  async function saveSelectedWorld(): Promise<void> {
+    if (!selectedWorldId || !selectedWorldDocument || !selectedWorldDraft || !selectedWorldEtag) {
+      setWorldValidationError('No se puede guardar: falta el documento original o su ETag. Vuelve a abrir el mundo.')
+      return
+    }
+    if (!worldValidation?.valid) {
+      setWorldValidationError('Antes de guardar, ejecuta una validación correcta del borrador actual.')
+      return
+    }
+    const confirmed = window.confirm(
+      'Vas a reemplazar el borrador remoto de "' + selectedWorldTitle + '" con el borrador local validado. Esta acción modifica el mundo en Voyage Creator Studio, pero NO lo publica. ¿Continuar?'
+    )
+    if (!confirmed) return
+
+    setWorldValidationError('')
+    setWorldValidationBusy(true)
+    try {
+      const world = {
+        ...selectedWorldDocument,
+        shortId: selectedWorldId,
+        initialGameState: selectedWorldDraft
+      }
+      const result = await window.api.voyage.saveWorld({
+        shortId: selectedWorldId,
+        etag: selectedWorldEtag,
+        world
+      })
+      if (!result.success || !result.saved) throw new Error(result.error || 'Voyage no confirmó el guardado.')
+      if (result.world && isRecord(result.world.initialGameState)) {
+        const refreshedDocument = JSON.parse(JSON.stringify(result.world)) as Record<string, unknown>
+        const refreshedState = JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>
+        setSelectedWorldDocument(refreshedDocument)
+        setSelectedWorldInitialGameState(refreshedState)
+        setSelectedWorldDraft(JSON.parse(JSON.stringify(refreshedState)) as Record<string, unknown>)
+        setSelectedWorldEtag(result.etag ?? null)
+        const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: refreshedState })
+        if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+        setWorldValidation(null)
+        setProposalChanges([])
+        setSelectedProposalPaths([])
+        setProposalSuggestions([])
+        setProposalError('')
+        setWorldValidationError('El borrador remoto se guardó y se volvió a leer correctamente. No se publicó.')
+      } else {
+        setSelectedWorldEtag(result.etag ?? null)
+        setWorldValidation(null)
+        setWorldValidationError(
+          'Voyage confirmó el guardado, pero no se pudo volver a leer el documento para verificarlo. ' +
+          (result.refreshError || 'Vuelve a abrir el mundo antes de realizar otro guardado.') +
+          ' El mundo no fue publicado.'
+        )
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo guardar el borrador remoto.'
+      setWorldValidationError(message)
+      await window.api.workspace.recordIssue({
+        worldId: selectedWorldId, source: 'application', severity: 'error',
+        code: 'VOYAGE_WORLD_SAVE_FAILURE', message, path: ''
+      }).catch(() => undefined)
+      const issueResult = await window.api.workspace.listIssues(selectedWorldId)
+      if (issueResult.success) setTrackedIssues(issueResult.issues)
+    } finally {
+      setWorldValidationBusy(false)
     }
   }
 
@@ -1233,6 +1303,10 @@ function App(): React.JSX.Element {
                             <p className="helper">Los cambios todavía no se guardan en Voyage. Al cerrar o cambiar de mundo, el borrador en memoria se pierde.</p>
                           </div>
                         )}
+                        <button className="secondary-button save-world-button" onClick={() => void saveSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || !selectedWorldDraft || !selectedWorldEtag || !worldValidation?.valid}>
+                          Guardar borrador remoto (requiere validación correcta)
+                        </button>
+                        <p className="helper">El guardado reemplaza el borrador de Creator Studio usando If-Match con el ETag descargado. Exige validación correcta y confirmación explícita. No publica el mundo.</p>
                         <button className="secondary-button" onClick={() => void validateSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || !selectedWorldDraft}>
                           {worldValidationBusy ? 'Validando borrador...' : 'Validar borrador (sin guardar)'}
                         </button>
