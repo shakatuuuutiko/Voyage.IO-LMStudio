@@ -294,6 +294,10 @@ function App(): React.JSX.Element {
   const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; source: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number; history: Array<{ at: string; action: string; detail: string }> }>>([])
   const [proposalIssueId, setProposalIssueId] = useState<string | null>(null)
   const [workspaceNotice, setWorkspaceNotice] = useState('')
+  const [draftSnapshots, setDraftSnapshots] = useState<Array<{ id: string; worldId: string; createdAt: string; source: string; label: string; bytes: number; sha256: string }>>([])
+  const [snapshotBusy, setSnapshotBusy] = useState(false)
+  const [snapshotPreview, setSnapshotPreview] = useState<{ summary: { id: string; createdAt: string; source: string; label: string; bytes: number }; gameState: Record<string, unknown> } | null>(null)
+
   const [issueReport, setIssueReport] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
   const proposalRequestInput = useRef<HTMLTextAreaElement>(null)
@@ -447,6 +451,12 @@ function App(): React.JSX.Element {
       setSelectedWorldEtag(result.etag ?? null)
       setSelectedWorldDocument(JSON.parse(JSON.stringify(result.world)) as Record<string, unknown>)
       setSelectedWorldInitialGameState(result.world.initialGameState)
+      setSelectedWorldDraft(JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>)
+      try {
+        await createDraftCheckpoint('world-opened', 'Estado descargado de Voyage', JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>)
+      } catch (snapshotError) {
+        setWorkspaceNotice(snapshotError instanceof Error ? snapshotError.message : 'No se pudo crear el snapshot inicial.')
+      }
       setIndexBusy(true)
       try {
         const indexResult = await window.api.workspace.buildIndex({ worldId: world.shortId, gameState: result.world.initialGameState })
@@ -462,6 +472,7 @@ function App(): React.JSX.Element {
       const issuesResult = await window.api.workspace.listIssues(world.shortId)
       setTrackedIssues(issuesResult.success ? issuesResult.issues : [])
       setSelectedWorldDraft(JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>)
+      await refreshDraftSnapshots(world.shortId).catch((snapshotError) => setWorkspaceNotice(snapshotError instanceof Error ? snapshotError.message : 'No se pudo leer el historial.'))
       setProposalChanges([])
       setProposalSuggestions([])
       setProposalError('')
@@ -474,6 +485,72 @@ function App(): React.JSX.Element {
       setSelectedWorldJson(error instanceof Error ? error.message : 'Error al leer el mundo.')
     } finally {
       setWorldReadBusy(false)
+    }
+  }
+
+
+  async function refreshDraftSnapshots(worldId = selectedWorldId): Promise<void> {
+    if (!worldId) return
+    const result = await window.api.workspace.listDraftSnapshots(worldId)
+    if (!result.success) throw new Error(result.error || 'No se pudo leer el historial de borradores.')
+    setDraftSnapshots(result.snapshots)
+  }
+
+  async function createDraftCheckpoint(
+    source: 'world-opened' | 'manual-checkpoint' | 'before-proposal' | 'proposal-applied' | 'draft-reset' | 'before-restore' | 'remote-saved',
+    label: string,
+    gameState = selectedWorldDraft
+  ): Promise<void> {
+    if (!selectedWorldId || !gameState) return
+    const result = await window.api.workspace.createDraftSnapshot({
+      worldId: selectedWorldId, gameState, source, label
+    })
+    if (!result.success) throw new Error(result.error || 'No se pudo guardar el snapshot local.')
+    await refreshDraftSnapshots(selectedWorldId)
+  }
+
+  async function inspectDraftSnapshot(snapshotId: string): Promise<void> {
+    if (!selectedWorldId) return
+    setSnapshotBusy(true)
+    try {
+      const result = await window.api.workspace.readDraftSnapshot({ worldId: selectedWorldId, snapshotId })
+      if (!result.success || !result.snapshot) throw new Error(result.error || 'No se pudo leer el snapshot.')
+      setSnapshotPreview(result.snapshot)
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo inspeccionar el snapshot.')
+    } finally {
+      setSnapshotBusy(false)
+    }
+  }
+
+  async function restoreDraftSnapshot(snapshotId: string): Promise<void> {
+    if (!selectedWorldId || snapshotBusy) return
+    const confirmed = window.confirm('Se reemplazará el borrador que tienes actualmente en memoria por el snapshot seleccionado. Se conservará primero una copia del estado actual. No se modificará Voyage. ¿Continuar?')
+    if (!confirmed) return
+    setSnapshotBusy(true)
+    try {
+      if (selectedWorldDraft) await createDraftCheckpoint('before-restore', 'Copia automática antes de restaurar')
+      const result = await window.api.workspace.readDraftSnapshot({ worldId: selectedWorldId, snapshotId })
+      if (!result.success || !result.snapshot) throw new Error(result.error || 'No se pudo restaurar el snapshot.')
+      const restored = JSON.parse(JSON.stringify(result.snapshot.gameState)) as Record<string, unknown>
+      setSelectedWorldDraft(restored)
+      const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: restored })
+      if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+      setProposalChanges([])
+      setSelectedProposalPaths([])
+      setProposalSuggestions([])
+      setProposalIssueId(null)
+      setProposalError('')
+      setWorldValidation(null)
+      setWorldValidationError('')
+      setSelectedWorldJson('')
+      setSnapshotPreview(null)
+      await refreshDraftSnapshots(selectedWorldId)
+      setWorkspaceNotice('Snapshot restaurado al borrador local. El mundo remoto no fue modificado; valida antes de guardar.')
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo restaurar el snapshot.')
+    } finally {
+      setSnapshotBusy(false)
     }
   }
 
@@ -511,6 +588,7 @@ function App(): React.JSX.Element {
         setSelectedWorldDocument(refreshedDocument)
         setSelectedWorldInitialGameState(refreshedState)
         setSelectedWorldDraft(JSON.parse(JSON.stringify(refreshedState)) as Record<string, unknown>)
+        await createDraftCheckpoint('remote-saved', 'Estado confirmado tras guardado remoto', refreshedState).catch((error) => setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot del estado remoto.'))
         setSelectedWorldEtag(result.etag ?? null)
         const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: refreshedState })
         if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
@@ -939,9 +1017,11 @@ function App(): React.JSX.Element {
     }
 
     try {
+      await createDraftCheckpoint('before-proposal', 'Estado anterior a aplicar propuesta')
       let next = selectedWorldDraft
       for (const change of selectedChanges) next = change.remove ? removePath(next, change.path) : writePath(next, change.path, change.value)
       setSelectedWorldDraft(next)
+      await createDraftCheckpoint('proposal-applied', 'Propuesta aplicada al borrador', next)
       const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: next })
       if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
       setProposalChanges(proposalChanges.filter((change) => !selectedProposalPaths.includes(JSON.stringify(change.path))))
@@ -966,6 +1046,8 @@ function App(): React.JSX.Element {
   async function discardDraftChanges(): Promise<void> {
     if (!selectedWorldInitialGameState) return
     const restored = JSON.parse(JSON.stringify(selectedWorldInitialGameState)) as Record<string, unknown>
+    try { await createDraftCheckpoint('draft-reset', 'Borrador restaurado a la versión descargada') }
+    catch (error) { setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot previo al reinicio.') }
     setSelectedWorldDraft(restored)
     if (selectedWorldId) {
       const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: restored })
@@ -1239,6 +1321,34 @@ function App(): React.JSX.Element {
                             <strong>{item.direction === 'outgoing' ? 'Referencia hacia' : 'Referenciado desde'}: {item.node.key}</strong>
                             <code>{item.node.path}</code><span>Coincidencia: {item.relationship.matchedValue}</span><p>{item.node.preview}</p>
                           </article>)}
+                        </div>}
+
+                        <div className="world-browser-heading issue-heading">
+                          <strong>HISTORIAL LOCAL DE BORRADORES</strong>
+                          <span>{draftSnapshots.length} SNAPSHOTS</span>
+                        </div>
+                        <p className="helper">Copias locales del GameState, separadas del servidor. Se conservan hasta 20 snapshots y 80 MiB por mundo; los duplicados exactos no se repiten. Cada copia se verifica mediante SHA-256 antes de restaurarla.</p>
+                        <button className="secondary-button" onClick={() => void createDraftCheckpoint('manual-checkpoint', 'Checkpoint manual del usuario').then(() => setWorkspaceNotice('Checkpoint local guardado. No se modificó Voyage.')).catch((error) => setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el checkpoint.'))} disabled={!selectedWorldDraft || snapshotBusy}>
+                          Guardar snapshot del borrador actual
+                        </button>
+                        {draftSnapshots.length === 0 ? <p className="helper">Todavía no hay snapshots locales.</p> :
+                          draftSnapshots.map((snapshot) => <article className="index-result" key={snapshot.id}>
+                            <strong>{snapshot.label || snapshot.source}</strong>
+                            <span>{formatDate(snapshot.createdAt)} · {snapshot.source} · {(snapshot.bytes / 1024).toFixed(1)} KiB</span>
+                            <code>{snapshot.id}</code>
+                            <div className="issue-actions">
+                              <button className="secondary-button" onClick={() => void inspectDraftSnapshot(snapshot.id)} disabled={snapshotBusy}>Comparar / inspeccionar</button>
+                              <button className="secondary-button" onClick={() => void restoreDraftSnapshot(snapshot.id)} disabled={snapshotBusy || !selectedWorldDraft}>Restaurar</button>
+                            </div>
+                          </article>)}
+                        {snapshotPreview && selectedWorldDraft && <div className="proposal-diff">
+                          <strong>Comparación: snapshot seleccionado frente al borrador actual</strong>
+                          <span className="helper">{snapshotPreview.summary.label || snapshotPreview.summary.source} · {formatDate(snapshotPreview.summary.createdAt)}</span>
+                          {buildProposalDiff(snapshotPreview.gameState, selectedWorldDraft, 20).map((entry, index) => <div className="proposal-diff-row" key={entry.path + index}>
+                            <code>{entry.path}</code><span className="proposal-diff-before">{entry.before}</span><span className="proposal-diff-after">{entry.after}</span>
+                          </div>)}
+                          {buildProposalDiff(snapshotPreview.gameState, selectedWorldDraft, 20).length === 0 && <p className="helper">El snapshot y el borrador actual no presentan diferencias detectables.</p>}
+                          <button className="secondary-button" onClick={() => setSnapshotPreview(null)}>Cerrar comparación</button>
                         </div>}
                         <div className="world-browser-heading issue-heading">
                           <strong>REGISTRO DE PROBLEMAS Y REPARACIONES</strong>
