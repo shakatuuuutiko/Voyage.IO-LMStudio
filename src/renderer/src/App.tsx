@@ -713,12 +713,41 @@ function App(): React.JSX.Element {
       : current.filter((key) => key !== pathKey))
   }
 
+  function discardProposalChange(pathKey: string): void {
+    setProposalChanges((current) => current.filter((change) => JSON.stringify(change.path) !== pathKey))
+    setSelectedProposalPaths((current) => current.filter((key) => key !== pathKey))
+  }
+
   async function applyProposalToDraft(): Promise<void> {
     const selectedChanges = proposalChanges.filter((change) => selectedProposalPaths.includes(JSON.stringify(change.path)))
     if (!selectedWorldDraft || selectedChanges.length === 0) {
       setProposalError('Selecciona al menos un cambio para aplicarlo al borrador local.')
       return
     }
+
+    const staleChanges = selectedChanges.filter((change) => {
+      const current = readPath(selectedWorldDraft, change.path)
+      return current.exists !== change.existed ||
+        (current.exists && JSON.stringify(current.value) !== JSON.stringify(change.previousValue))
+    })
+    if (staleChanges.length > 0) {
+      setProposalError('Conflicto detectado: ' + staleChanges.map((change) => change.path.join(' › ')).join(', ') +
+        '. El borrador cambió desde que se generó la propuesta. Descarta o vuelve a generar esos cambios antes de aplicarlos.')
+      return
+    }
+
+    const overlappingPaths = selectedChanges.filter((change, index) =>
+      selectedChanges.some((other, otherIndex) => {
+        if (index === otherIndex) return false
+        const sharedLength = Math.min(change.path.length, other.path.length)
+        return change.path.slice(0, sharedLength).every((part, partIndex) => part === other.path[partIndex])
+      })
+    )
+    if (overlappingPaths.length > 0) {
+      setProposalError('Conflicto de rutas: seleccionaste cambios sobre una propiedad y uno de sus descendientes. Aplica uno y vuelve a generar el otro.')
+      return
+    }
+
     try {
       let next = selectedWorldDraft
       for (const change of selectedChanges) next = change.remove ? removePath(next, change.path) : writePath(next, change.path, change.value)
@@ -1083,7 +1112,10 @@ function App(): React.JSX.Element {
                                 {proposalChanges.map((change) => (
                                   <div className="proposal-change" key={JSON.stringify(change.path)}>
                                     <label className="proposal-change-select"><input type="checkbox" checked={selectedProposalPaths.includes(JSON.stringify(change.path))} onChange={(event) => toggleProposalChange(JSON.stringify(change.path), event.target.checked)} /> Incluir este cambio</label>
-                                    <strong>{change.path.join(' › ')}</strong>
+                                    <div className="proposal-change-heading">
+                                      <strong>{change.path.join(' › ')}</strong>
+                                      <button className="proposal-reject-button" type="button" onClick={() => discardProposalChange(JSON.stringify(change.path))}>Rechazar</button>
+                                    </div>
                                     <span className="helper">{change.category}</span>
                                     <p>{change.reason}</p>
                                     <span className="helper">Valor actual{change.existed ? '' : ' (propiedad nueva)'}</span>
