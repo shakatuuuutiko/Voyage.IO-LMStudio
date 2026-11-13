@@ -66,7 +66,7 @@ The contract explicitly excludes Creator Studio chat, conversations, agent runs,
 
 ### Authentication discrepancy to resolve
 
-The earlier human-readable overview refers to Creator API keys. The newly uploaded `agent-guide.md` specifically says **Player API keys**, requires the `sk-voyage-v1-` format, a required scope, an active account, and Creator Studio plus Creator API rollout access (unless the account is a developer). Treat the uploaded guide and selected-host OpenAPI contract as the implementation source of truth, but verify the exact key creation UI/permissions with the user before building onboarding copy. Do not assume an API key can be created by the app.
+The uploaded `agent-guide.md` specifies **Player API keys**, the `sk-voyage-v1-` format, a required scope, an active account, and Creator Studio plus Creator API rollout access (unless the account is a developer). The official Latitude announcement confirms the creation path: open a world in Creator Studio → Settings → API keys → enter a label → Generate → copy immediately (shown only once). The app accepts a creator-generated key; it does not create keys. The literal required scope name remains undocumented.
 
 ### Critical data and mutation rules
 
