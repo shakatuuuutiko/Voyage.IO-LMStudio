@@ -461,7 +461,7 @@ function App(): React.JSX.Element {
       const result = await window.api.lmStudio.chat({
         model: selectedModel,
         prompt: prompt.trim(),
-        maxTokens
+        maxTokens: Number(maxTokens) || 4096
       })
 
       if (!result.success) {
