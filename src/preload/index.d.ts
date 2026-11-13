@@ -63,6 +63,7 @@ interface AppAPI {
     getStatus: () => Promise<VoyageStatusResult>
     saveApiKey: (apiKey: string) => Promise<VoyageOperationResult>
     testConnection: () => Promise<VoyageOperationResult>
+    listWorlds: () => Promise<{ success: boolean; worlds?: unknown; error?: string }>
     readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
     clearApiKey: () => Promise<VoyageOperationResult>
   }
