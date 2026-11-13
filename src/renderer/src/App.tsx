@@ -664,7 +664,7 @@ function App(): React.JSX.Element {
       setSelectedWorldDraft(next)
       const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: next })
       if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
-      setProposalChanges([])
+      setProposalChanges(proposalChanges.filter((change) => !selectedProposalPaths.includes(JSON.stringify(change.path))))
       setSelectedProposalPaths([])
       setWorldValidation(null)
       setWorldValidationError('')
@@ -1031,7 +1031,7 @@ function App(): React.JSX.Element {
                                   </div>
                                 ))}
                                 <button className="secondary-button" onClick={() => void applyProposalToDraft()} disabled={selectedProposalPaths.length === 0}>Aplicar cambios seleccionados ({selectedProposalPaths.length}) al borrador local</button>
-                                <button className="secondary-button" onClick={() => { setProposalChanges([]); setProposalSuggestions([]) }}>Descartar propuesta</button>
+                                <button className="secondary-button" onClick={() => { setProposalChanges([]); setSelectedProposalPaths([]); setProposalSuggestions([]) }}>Descartar propuesta</button>
                               </div>
                             )}
                             <button className="secondary-button" onClick={discardDraftChanges} disabled={proposalBusy || worldValidationBusy}>Descartar todos los cambios del borrador</button>
