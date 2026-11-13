@@ -90,16 +90,17 @@ Music is separate: MP3/WAV/OGG/M4A, up to 25 MiB per guide, signed direct upload
 
 Implemented in this branch:
 
-- Main-process Voyage HTTP client for authenticated connection checks.
+- Main-process Voyage HTTP client for authenticated connection checks and read-only single-world download by `shortId`.
 - Encrypted key storage through Electron `safeStorage`, rejecting the insecure `basic_text` backend.
 - IPC methods to inspect key status, save, test and clear a key. The key is never returned to the renderer.
-- Typed preload bridge extension. Existing LM Studio IPC methods remain unchanged.
+- Typed preload bridge extension, including read-only world retrieval. Existing LM Studio IPC methods remain unchanged.
 - Initial renderer controls for key entry, save, test and clear. The input is uncontrolled and cleared after a successful save.
 - Explicit `contextIsolation: true` and `nodeIntegration: false` in BrowserWindow.
 
 Not implemented yet:
 
-- World listing, reading, local snapshots, editing, validation and synchronization.
+- World listing UI and list-response parsing (the API does not document its response schema).
+- Local snapshots, editing, validation and synchronization. The single-world read path exists but still requires a live response/ETag verification.
 - Revisions, restore, moderation, media and publication workflows.
 - Live API integration test and Windows build.
 
