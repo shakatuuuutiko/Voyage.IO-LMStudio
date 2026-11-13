@@ -428,12 +428,13 @@ function App(): React.JSX.Element {
       // Algunos modelos locales generan JSON casi válido, pero omiten cierres de arrays
       // o mezclan campos del objeto dentro de path. No intentamos reparar eso con regex:
       // pedimos al mismo modelo una normalización y luego validamos las rutas contra el GameState.
+      setProposalRawResponse(result.content)
       let proposalContent = result.content
       let parsed: unknown
       try {
         try { parsed = JSON.parse(proposalContent.trim()) }
         catch { parsed = JSON.parse(extractJsonObject(proposalContent)) }
-      } catch (initialParseError) {
+      } catch {
         const repairPrompt = [
           'Actúa exclusivamente como reparador de JSON. La respuesta siguiente contiene una propuesta con sintaxis JSON defectuosa.',
           'Reconstruye el JSON conservando exactamente la intención y los datos que sí aparecen. No añadas cambios, campos, rutas ni recomendaciones nuevas.',
@@ -463,7 +464,6 @@ function App(): React.JSX.Element {
         try { parsed = JSON.parse(proposalContent.trim()) }
         catch { parsed = JSON.parse(extractJsonObject(proposalContent)) }
       }
-      if (!proposalRawResponse) setProposalRawResponse(result.content)
       if (!isRecord(parsed) || !Array.isArray(parsed.changes) || parsed.changes.length > 30) {
         throw new Error('La respuesta no respeta el formato esperado (changes, máximo 30).')
       }
