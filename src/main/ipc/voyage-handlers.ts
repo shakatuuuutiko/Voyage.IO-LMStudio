@@ -35,6 +35,7 @@ export function registerVoyageIpcHandlers(): void {
   ipcMain.removeHandler('voyage:test-connection')
   ipcMain.removeHandler('voyage:clear-api-key')
   ipcMain.removeHandler('voyage:read-world')
+  ipcMain.removeHandler('voyage:list-worlds')
 
   ipcMain.handle('voyage:get-status', async () => {
     try {
@@ -86,6 +87,17 @@ export function registerVoyageIpcHandlers(): void {
 
       const result = await new VoyageCreatorClient(apiKey).testConnection()
       return { success: true, message: result.message }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:list-worlds', async () => {
+    try {
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const worlds = await new VoyageCreatorClient(apiKey).listWorlds()
+      return { success: true, worlds }
     } catch (error) {
       return { success: false, error: getErrorMessage(error) }
     }
