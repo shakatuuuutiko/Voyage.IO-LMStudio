@@ -85,14 +85,27 @@ ipcMain.handle(
 
       const maxTokens = Math.min(8192, Math.max(256, Number(payload.maxTokens) || 4096))
 
-      const result = (await lmRequest('/v1/chat/completions', {
+      const requestBody = {
         model: payload.model,
         messages: [{ role: 'user', content: payload.prompt }],
         max_tokens: maxTokens,
         temperature: payload.jsonMode ? 0.2 : 0.7,
         ...(payload.jsonMode ? { response_format: { type: 'json_object' } } : {}),
         stream: false
-      })) as ChatResponse
+      }
+
+      let result: ChatResponse
+      try {
+        result = (await lmRequest('/v1/chat/completions', requestBody)) as ChatResponse
+      } catch (error) {
+        const message = error instanceof Error ? error.message : ''
+        // Algunos modelos/servidores compatibles con OpenAI no admiten response_format.
+        // Reintentar una sola vez sin modo JSON evita que esa limitación bloquee la generación.
+        if (!payload.jsonMode || !message.includes('HTTP 400')) throw error
+
+        const { response_format: _unsupportedFormat, ...compatibleBody } = requestBody
+        result = (await lmRequest('/v1/chat/completions', compatibleBody)) as ChatResponse
+      }
 
       const message = result.choices?.[0]?.message
       const content = typeof message?.content === 'string' ? message.content.trim() : ''
