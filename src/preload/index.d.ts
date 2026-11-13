@@ -134,6 +134,7 @@ interface AppAPI {
     listWorlds: () => Promise<{ success: boolean; worlds?: unknown; error?: string }>
     readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
     validateDraft: (initialGameState: Record<string, unknown>) => Promise<VoyageDraftValidationResult>
+    saveWorld: (payload: { shortId: string; etag: string; world: Record<string, unknown> }) => Promise<{ success: boolean; saved?: boolean; world?: VoyageWorld | null; etag?: string | null; refreshError?: string; error?: string }>
     clearApiKey: () => Promise<VoyageOperationResult>
   }
 }
