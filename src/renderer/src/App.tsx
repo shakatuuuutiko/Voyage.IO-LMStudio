@@ -196,6 +196,12 @@ function App(): React.JSX.Element {
   const [worldValidationBusy, setWorldValidationBusy] = useState(false)
   const [worldValidation, setWorldValidation] = useState<{ valid: boolean; errors: Array<{ code: string; message: string; path: string }>; warnings: Array<{ code: string; message: string; path: string }>; requestId: string } | null>(null)
   const [worldValidationError, setWorldValidationError] = useState('')
+  const [worldIndex, setWorldIndex] = useState<{ generatedAt: string; nodeCount: number; rootKeys: string[] } | null>(null)
+  const [indexBusy, setIndexBusy] = useState(false)
+  const [indexQuery, setIndexQuery] = useState('')
+  const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
+  const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number }>>([])
+  const [workspaceNotice, setWorkspaceNotice] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
   const proposalRequestInput = useRef<HTMLTextAreaElement>(null)
 
@@ -322,6 +328,10 @@ function App(): React.JSX.Element {
     setSelectedWorldJson('')
     setSelectedWorldInitialGameState(null)
     setSelectedWorldDraft(null)
+    setWorldIndex(null)
+    setIndexResults([])
+    setTrackedIssues([])
+    setWorkspaceNotice('')
     setProposalChanges([])
     setProposalSuggestions([])
     setProposalError('')
@@ -334,6 +344,20 @@ function App(): React.JSX.Element {
       }
       setSelectedWorldEtag(result.etag ?? null)
       setSelectedWorldInitialGameState(result.world.initialGameState)
+      setIndexBusy(true)
+      try {
+        const indexResult = await window.api.workspace.buildIndex({ worldId: world.shortId, gameState: result.world.initialGameState })
+        if (!indexResult.success || !indexResult.index) throw new Error(indexResult.error || 'No se pudo generar el índice local.')
+        setWorldIndex(indexResult.index)
+        setWorkspaceNotice('Índice local actualizado desde el GameState descargado.')
+      } catch (indexError) {
+        setWorldIndex(null)
+        setWorkspaceNotice(indexError instanceof Error ? indexError.message : 'Falló la generación del índice.')
+      } finally {
+        setIndexBusy(false)
+      }
+      const issuesResult = await window.api.workspace.listIssues(world.shortId)
+      setTrackedIssues(issuesResult.success ? issuesResult.issues : [])
       setSelectedWorldDraft(JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>)
       setProposalChanges([])
       setProposalSuggestions([])
@@ -359,11 +383,36 @@ function App(): React.JSX.Element {
       const result = await window.api.voyage.validateDraft(selectedWorldDraft || selectedWorldInitialGameState)
       if (!result.success || !result.validation) throw new Error(result.error || 'Voyage no devolvió el resultado de validación.')
       setWorldValidation(result.validation)
+      const detectedIssues = [
+        ...result.validation.errors.map((issue) => ({ ...issue, severity: 'error' as const })),
+        ...result.validation.warnings.map((issue) => ({ ...issue, severity: 'warning' as const }))
+      ]
+      for (const issue of detectedIssues) {
+        await window.api.workspace.recordIssue({
+          worldId: selectedWorldId, source: 'voyage-validation',
+          severity: issue.severity, code: issue.code, message: issue.message, path: issue.path
+        })
+      }
+      const issueResult = await window.api.workspace.listIssues(selectedWorldId)
+      if (issueResult.success) setTrackedIssues(issueResult.issues)
     } catch (error) {
       setWorldValidationError(error instanceof Error ? error.message : 'Error al validar el borrador.')
     } finally {
       setWorldValidationBusy(false)
     }
+  }
+
+  async function searchWorldKnowledge(): Promise<void> {
+    if (!selectedWorldId || !indexQuery.trim()) return
+    const result = await window.api.workspace.searchIndex({ worldId: selectedWorldId, query: indexQuery.trim(), limit: 80 })
+    if (result.success) setIndexResults(result.results)
+    else setWorkspaceNotice(result.error || 'No se pudo consultar el índice.')
+  }
+
+  async function changeIssueStatus(issueId: string, status: 'investigating' | 'fixed-pending-validation' | 'resolved' | 'false-positive'): Promise<void> {
+    const result = await window.api.workspace.updateIssue({ worldId: selectedWorldId, issueId, status, detail: 'Estado actualizado desde la interfaz.' })
+    if (result.success && result.issues) setTrackedIssues(result.issues)
+    else setWorkspaceNotice(result.error || 'No se pudo actualizar el problema.')
   }
 
   async function generateWorldProposal(mode: 'request' | 'recommend' | 'repair' = 'request'): Promise<void> {
@@ -790,6 +839,45 @@ function App(): React.JSX.Element {
                         </button>
                       )
                     ) : selectedWorldJson ? <p className="helper">{selectedWorldJson}</p> : null}
+                    {selectedWorldInitialGameState && (
+                      <section className="world-intelligence-panel">
+                        <div className="world-browser-heading">
+                          <strong>WORLD KNOWLEDGE INDEX</strong>
+                          <span>{indexBusy ? 'GENERANDO...' : worldIndex ? worldIndex.nodeCount.toLocaleString() + ' NODOS' : 'SIN ÍNDICE'}</span>
+                        </div>
+                        <p className="helper">Índice estructural local del GameState. Conserva rutas JSON Pointer exactas y permite localizar contenido sin enviar todo el mundo a LM Studio.</p>
+                        {worldIndex && <p className="helper">Actualizado: {formatDate(worldIndex.generatedAt)} · Secciones raíz: {worldIndex.rootKeys.length}</p>}
+                        {workspaceNotice && <p className="helper" role="status">{workspaceNotice}</p>}
+                        <div className="index-search-row">
+                          <input value={indexQuery} onChange={(event) => setIndexQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void searchWorldKnowledge() }} placeholder="Buscar facciones, NPCs, habilidades, términos..." />
+                          <button className="secondary-button" onClick={() => void searchWorldKnowledge()}>Buscar</button>
+                        </div>
+                        {indexResults.length > 0 && <div className="index-results">
+                          <strong>Resultados · {indexResults.length}</strong>
+                          {indexResults.map((item) => <article className="index-result" key={item.path}>
+                            <strong>{item.key}</strong><code>{item.path}</code>
+                            <span>{item.kind} · {item.childCount} elementos</span><p>{item.preview}</p>
+                          </article>)}
+                        </div>}
+                        <div className="world-browser-heading issue-heading">
+                          <strong>REGISTRO DE PROBLEMAS Y REPARACIONES</strong>
+                          <span>{trackedIssues.filter((issue) => issue.status !== 'resolved' && issue.status !== 'false-positive').length} ABIERTOS</span>
+                        </div>
+                        <p className="helper">Los errores y warnings de validación se guardan localmente. Las reparaciones conservan historial; un problema que reaparece se vuelve a abrir.</p>
+                        {trackedIssues.length === 0 ? <p className="helper">Todavía no hay problemas registrados. Ejecuta una validación para iniciar el seguimiento.</p> :
+                          trackedIssues.slice(0, 30).map((issue) => <article className="tracked-issue" key={issue.id}>
+                            <div className="world-browser-heading"><strong>{issue.code}</strong><span>{issue.severity.toUpperCase()} · {issue.status}</span></div>
+                            <p>{issue.message}</p><code>{issue.path || 'Sin ruta'}</code>
+                            <span className="helper">Detectado {issue.occurrences} vez/veces</span>
+                            <div className="issue-actions">
+                              {issue.status !== 'investigating' && <button className="secondary-button" onClick={() => void changeIssueStatus(issue.id, 'investigating')}>Investigar</button>}
+                              {issue.status !== 'fixed-pending-validation' && <button className="secondary-button" onClick={() => void changeIssueStatus(issue.id, 'fixed-pending-validation')}>Marcar reparación pendiente</button>}
+                              {issue.status !== 'resolved' && <button className="secondary-button" onClick={() => void changeIssueStatus(issue.id, 'resolved')}>Marcar resuelto</button>}
+                              {issue.status !== 'false-positive' && <button className="secondary-button" onClick={() => void changeIssueStatus(issue.id, 'false-positive')}>Falso positivo</button>}
+                            </div>
+                          </article>)}
+                      </section>
+                    )}
                     {selectedWorldInitialGameState && (
                       <div className="world-validation-panel">
                         {selectedWorldDraft && (
