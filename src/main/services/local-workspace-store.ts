@@ -126,32 +126,159 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
 
   // Infer only unambiguous exact-name links from string values to named object/array entries.
   // No fuzzy matching: uncertain references are deliberately omitted.
-  const targetsByName = new Map<string, string[]>()
-  for (const node of nodes) {
-    if ((node.kind !== 'object' && node.kind !== 'array') || !node.key || node.key === '$') continue
-    const name = normalizeReference(node.key)
-    if (name.length < 2) continue
-    const paths = targetsByName.get(name) || []
-    paths.push(node.path)
-    targetsByName.set(name, paths)
-  }
   const relationships: WorldRelationship[] = []
-  const seenEdges = new Set<string>()
-  for (const reference of rawReferences) {
-    const targets = targetsByName.get(reference.targetName)
-    if (!targets || targets.length !== 1 || targets[0] === reference.sourcePath) continue
-    const targetPath = targets[0]
-    if (reference.sourcePath.startsWith(targetPath + '/') || targetPath.startsWith(reference.sourcePath + '/')) continue
-    const edgeKey = reference.sourcePath + '->' + targetPath
-    if (seenEdges.has(edgeKey)) continue
-    seenEdges.add(edgeKey)
-    relationships.push({
-      sourcePath: reference.sourcePath,
-      targetPath,
-      matchedValue: reference.targetName,
-      kind: 'exact-name-reference'
-    })
-    if (relationships.length >= 20000) break
+  // A partial index cannot establish that a target name is globally unique.
+  // Suppress graph inference entirely when the node cap truncated traversal.
+  if (stack.length === 0) {
+    const targetsByName = new Map<string, string[]>()
+    for (const node of nodes) {
+      if ((node.kind !== 'object' && node.kind !== 'array') || !node.key || node.key === '
+
+  const index: WorldIndex = {
+    schemaVersion: 2,
+    worldId: safeWorldId(worldId),
+    generatedAt: new Date().toISOString(),
+    nodeCount: nodes.length,
+    complete: stack.length === 0,
+    rootKeys: Object.keys(gameState),
+    nodes,
+    relationships,
+    relationshipCount: relationships.length
+  }
+  const directory = await workspaceDir(worldId)
+  await atomicWrite(join(directory, 'world-index.json'), index)
+  return index
+}
+
+export async function readWorldIndex(worldId: string): Promise<WorldIndex | null> {
+  const directory = await workspaceDir(worldId)
+  const index = await readJson<WorldIndex | null>(join(directory, 'world-index.json'), null)
+  return index?.schemaVersion === 2 && Array.isArray(index.relationships) ? index : null
+}
+
+export async function searchWorldIndex(worldId: string, query: string, limit = 60): Promise<WorldIndexNode[]> {
+  const index = await readWorldIndex(worldId)
+  if (!index) return []
+  const terms = query.toLocaleLowerCase().split(/\s+/).filter(Boolean)
+  if (!terms.length) return []
+  return index.nodes
+    .map((node) => ({ node, score: terms.reduce((score, term) => score + (node.terms.includes(term) ? 1 : 0), 0) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.node.path.localeCompare(b.node.path))
+    .slice(0, Math.max(1, Math.min(200, limit)))
+    .map((item) => item.node)
+}
+
+export async function getRelatedWorldNodes(worldId: string, paths: string[], limit = 40): Promise<Array<{ matchedPath: string; direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }>> {
+  const index = await readWorldIndex(worldId)
+  if (!index) return []
+  const requestedPaths = new Set(paths.filter((path) => typeof path === 'string'))
+  const nodeByPath = new Map(index.nodes.map((node) => [node.path, node]))
+  const results: Array<{ matchedPath: string; direction: 'outgoing' | 'incoming'; node: WorldIndexNode; relationship: WorldRelationship }> = []
+  for (const relationship of index.relationships) {
+    if (requestedPaths.has(relationship.sourcePath)) {
+      const node = nodeByPath.get(relationship.targetPath)
+      if (node) results.push({ matchedPath: relationship.sourcePath, direction: 'outgoing', node, relationship })
+    }
+    if (requestedPaths.has(relationship.targetPath)) {
+      const node = nodeByPath.get(relationship.sourcePath)
+      if (node) results.push({ matchedPath: relationship.targetPath, direction: 'incoming', node, relationship })
+    }
+    if (results.length >= Math.max(1, Math.min(200, limit))) break
+  }
+  return results
+}
+
+export async function listTrackedIssues(worldId: string): Promise<TrackedIssue[]> {
+  const directory = await workspaceDir(worldId)
+  return readJson<TrackedIssue[]>(join(directory, 'issues.json'), [])
+}
+
+export async function recordTrackedIssue(input: {
+  worldId: string
+  source: TrackedIssue['source']
+  severity: TrackedIssue['severity']
+  code: string
+  message: string
+  path?: string
+}): Promise<TrackedIssue> {
+  const directory = await workspaceDir(input.worldId)
+  const file = join(directory, 'issues.json')
+  const issues = await readJson<TrackedIssue[]>(file, [])
+  const now = new Date().toISOString()
+  const path = input.path || ''
+  const fingerprint = (issue: TrackedIssue): boolean =>
+    issue.source === input.source && issue.severity === input.severity && issue.code === input.code && issue.path === path && issue.message === input.message
+  let issue = issues.find(fingerprint)
+  if (issue) {
+    issue.lastSeenAt = now
+    issue.severity = input.severity
+    issue.occurrences += 1
+    if (issue.status !== 'open' && issue.status !== 'investigating') issue.status = 'open'
+    issue.history.push({ at: now, action: 'detected-again', detail: 'El mismo problema volvió a detectarse.' })
+  } else {
+    issue = {
+      id: randomUUID(),
+      worldId: safeWorldId(input.worldId),
+      source: input.source,
+      severity: input.severity,
+      code: input.code,
+      message: input.message,
+      path,
+      status: 'open',
+      firstSeenAt: now,
+      lastSeenAt: now,
+      occurrences: 1,
+      history: [{ at: now, action: 'detected', detail: 'Problema registrado por primera vez.' }]
+    }
+    issues.unshift(issue)
+  }
+  await atomicWrite(file, issues)
+  return issue
+}
+
+export async function updateTrackedIssue(
+  worldId: string,
+  issueId: string,
+  status: TrackedIssue['status'],
+  detail = ''
+): Promise<TrackedIssue[]> {
+  const directory = await workspaceDir(worldId)
+  const file = join(directory, 'issues.json')
+  const issues = await readJson<TrackedIssue[]>(file, [])
+  const issue = issues.find((item) => item.id === issueId)
+  if (!issue) throw new Error('No se encontró el problema seleccionado.')
+  const now = new Date().toISOString()
+  issue.status = status
+  issue.lastSeenAt = now
+  issue.history.push({ at: now, action: 'status-changed', detail: detail || `Estado cambiado a ${status}.` })
+  await atomicWrite(file, issues)
+  return issues
+}
+) continue
+      const name = normalizeReference(node.key)
+      if (name.length < 2) continue
+      const paths = targetsByName.get(name) || []
+      paths.push(node.path)
+      targetsByName.set(name, paths)
+    }
+    const seenEdges = new Set<string>()
+    for (const reference of rawReferences) {
+      const targets = targetsByName.get(reference.targetName)
+      if (!targets || targets.length !== 1 || targets[0] === reference.sourcePath) continue
+      const targetPath = targets[0]
+      if (reference.sourcePath.startsWith(targetPath + '/') || targetPath.startsWith(reference.sourcePath + '/')) continue
+      const edgeKey = reference.sourcePath + '->' + targetPath
+      if (seenEdges.has(edgeKey)) continue
+      seenEdges.add(edgeKey)
+      relationships.push({
+        sourcePath: reference.sourcePath,
+        targetPath,
+        matchedValue: reference.targetName,
+        kind: 'exact-name-reference'
+      })
+      if (relationships.length >= 20000) break
+    }
   }
 
   const index: WorldIndex = {
