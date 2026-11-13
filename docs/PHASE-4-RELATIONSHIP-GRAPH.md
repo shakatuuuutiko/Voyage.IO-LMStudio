@@ -80,3 +80,22 @@ These labels are review hints, not a schema validator, semantic classifier, or g
 ### Verification status
 
 The GitHub branch contains the implementation and styles. The assistant has not run the Windows TypeScript check, package build, or Electron runtime. Run npm run typecheck after pulling the latest branch before proceeding to the next implementation increment.
+
+
+## Remote draft save — conditional replacement
+
+The client now exposes an explicit save action for the live Creator Studio draft:
+
+- Sends PUT to /worlds/{shortId} with the complete preserved world envelope and If-Match set to the ETag obtained from the last read.
+- The renderer retains the downloaded world document and replaces only its initialGameState with the reviewed local draft.
+- Saving is disabled until the current draft has a successful Voyage validation and a usable ETag.
+- The user must click the save control and accept a confirmation dialog. The dialog states that this replaces the remote draft.
+- After a successful PUT, the app reads the world again to refresh the document and ETag. If the follow-up read fails, the UI reports that the write was accepted but requires reopening the world before another save.
+- HTTP revision conflicts are surfaced as errors; the app does not retry blindly. The user must reopen the latest world, reconcile changes, validate again, and then save.
+- Publishing and unpublishing remain separate operations and are not invoked by this feature.
+
+The save handler preserves unknown top-level world fields by spreading the downloaded document and changing only initialGameState. The Creator API contract is sourced from the repository's Creator API OpenAPI document and agent guide.
+
+### Remote-write safety boundary
+
+The assistant has only added the capability to the application. No PUT request has been sent and no Voyage world has been modified by this implementation work. Runtime behavior, the server's ETag response after PUT, and conflict handling still require verification against a test world.
