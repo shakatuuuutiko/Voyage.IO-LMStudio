@@ -106,21 +106,23 @@ The application now exposes a read-only **Consultar mis mundos** action after a 
 After pulling the feature branch and starting the app, select **Consultar mis mundos**. If the request succeeds, copy the JSON response from the inspector and provide it for schema analysis. If it fails, provide only the HTTP status and sanitized error text.
 
 
-## Local AI proposal editor
+## Global local-AI proposal and recommendation workflow
 
-After a successful live draft validation, the renderer now supports a first safe proposal workflow:
+The initial single-section proposal editor has been replaced by a free-form, world-wide workflow:
 
-- Select one top-level `initialGameState` section whose value is a JSON object.
-- Enter a requested change. LM Studio receives only that selected section, not the complete world document.
-- The model must return JSON in the form `{"changes":[{"key":"propertyName","value":{},"reason":"..."}]}`; the renderer rejects malformed responses, duplicate keys, prototype-related keys, and proposals with more than 20 changes.
-- The review panel displays each proposed direct-property value and its reason before the user chooses **Aplicar al borrador local**.
-- Applying a proposal changes only the renderer's in-memory draft. It does not call Voyage and does not mutate the downloaded original snapshot.
-- **Descartar todos los cambios del borrador** restores the in-memory draft from the original downloaded `initialGameState`.
-- **Validar borrador (sin guardar)** validates the current draft, including locally applied proposals.
+- The user describes the desired outcome without choosing a section. LM Studio receives the current `initialGameState` as compact JSON and is asked to identify all relevant sections and propose coordinated changes.
+- The **Recomiéndame** action works without a user prompt. It asks the local model to inspect the world and return prioritized recommendations covering repairs, consistency, content, depth, systems, balance, and expansion opportunities.
+- If draft validation has errors, **Proponer correcciones de validación** sends the current validation issues and draft to the local model for a targeted repair proposal.
+- The structured response supports JSON paths across multiple sections, value replacements/additions at leaf paths, and explicit property removals. The renderer rejects malformed paths, missing/non-editable parents, prototype-related path segments, duplicate paths, and oversized proposals.
+- The review panel shows each full path, category, reason, current value, and proposed value/removal. Recommendations that are explanatory rather than safely expressible as GameState edits are shown separately.
+- The model is instructed not to invent root properties, schema fields, IDs, or configuration keys. The renderer can verify path existence and safe application, but the authoritative compatibility check remains Voyage's `POST /validate` endpoint.
+- Applying accepted changes mutates only the renderer's in-memory draft. It does not call Voyage. The user can discard a proposal or restore the draft from the downloaded original.
+- The workflow remains local-AI-only and preserves the manual review boundary. No PUT/save, automatic publication, or remote mutation is introduced.
 
-This is intentionally a constrained first iteration: the model can replace or add direct properties inside one selected object section; it cannot issue arbitrary JSON paths or modify the world envelope, `shortId`, publication state, or other world metadata. Drafts are currently memory-only and are lost when the world is changed or the app is closed. There is still no Voyage PUT/save endpoint exposed, no persistent local snapshot store, and no automatic publication. A successful draft validation does not authorize a remote save.
+### Important context-size limitation
 
+The global workflow sends the compact current GameState to the selected local model. A large world may exceed that model's context window even when the JSON is syntactically valid. In that case, LM Studio may truncate or fail to process the request; increase the model's context length or use a model with a larger context window. The application must not silently claim that an incomplete analysis covered the whole world.
 
-### Structured-output handling for local proposals
+### Verification status
 
-The proposal request now asks LM Studio's OpenAI-compatible Chat Completions endpoint for JSON object mode (`response_format: { type: 'json_object' }`) with a lower temperature. The prompt uses a syntactically valid JSON example rather than a placeholder token. The renderer first parses the complete response, then can extract the first balanced JSON object if a model adds surrounding prose. It detects `finish_reason: length` before parsing and reports truncation explicitly. Any malformed or incomplete response is rejected; no draft changes are applied.
+The code changes are committed to `feature/voyage-creator-api`, but they have not been run through the user's Windows/LM Studio environment from this development session. Local `npm run typecheck`, app startup, proposal generation, recommendation generation, and live draft validation must be checked after pulling the branch. No change has been merged into `main`.
