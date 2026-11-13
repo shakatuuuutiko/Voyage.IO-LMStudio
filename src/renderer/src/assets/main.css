@@ -385,3 +385,24 @@ button:disabled, select:disabled, textarea:disabled {
     padding-left: 20px;
   }
 }
+
+.world-list-inspector {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #343a49;
+}
+
+.world-list-inspector pre {
+  max-height: 260px;
+  overflow: auto;
+  padding: 9px;
+  border: 1px solid #303645;
+  border-radius: 6px;
+  color: #bfc8d8;
+  background: #11141b;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
