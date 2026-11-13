@@ -693,8 +693,8 @@ function App(): React.JSX.Element {
         contextNodes.unshift({
           path: targetIssue.path, key: targetPathSegments[targetPathSegments.length - 1],
           kind: Array.isArray(targetPathValue.value) ? 'array' : isRecord(targetPathValue.value) ? 'object' : typeof targetPathValue.value,
-          preview: JSON.stringify(summarizeForAI(targetPathValue.value, 0, { remaining: 2500 })).slice(0, 1200),
-          terms: targetIssue.code + ' ' + targetIssue.message, childCount: 0
+          preview: JSON.stringify({ issue: targetIssue.code, message: targetIssue.message, value: summarizeForAI(targetPathValue.value, 0, { remaining: 2500 }) }).slice(0, 1800),
+          childCount: 0
         })
       }
       const retrievalBudget = { remaining: 18000 }
