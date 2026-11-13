@@ -232,10 +232,11 @@ function App(): React.JSX.Element {
   const [worldValidationBusy, setWorldValidationBusy] = useState(false)
   const [worldValidation, setWorldValidation] = useState<{ valid: boolean; errors: Array<{ code: string; message: string; path: string }>; warnings: Array<{ code: string; message: string; path: string }>; requestId: string } | null>(null)
   const [worldValidationError, setWorldValidationError] = useState('')
-  const [worldIndex, setWorldIndex] = useState<{ generatedAt: string; nodeCount: number; complete: boolean; rootKeys: string[] } | null>(null)
+  const [worldIndex, setWorldIndex] = useState<{ generatedAt: string; nodeCount: number; complete: boolean; rootKeys: string[]; relationshipCount: number } | null>(null)
   const [indexBusy, setIndexBusy] = useState(false)
   const [indexQuery, setIndexQuery] = useState('')
   const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
+  const [relatedResults, setRelatedResults] = useState<Array<{ direction: 'outgoing' | 'incoming'; node: { path: string; key: string; kind: string; preview: string; childCount: number }; relationship: { sourcePath: string; targetPath: string; matchedValue: string; kind: 'exact-name-reference' } }>>([])
   const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; source: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number; history: Array<{ at: string; action: string; detail: string }> }>>([])
   const [workspaceNotice, setWorkspaceNotice] = useState('')
   const [issueReport, setIssueReport] = useState('')
@@ -369,6 +370,7 @@ function App(): React.JSX.Element {
     setWorldIndex(null)
     setIndexQuery('')
     setIndexResults([])
+    setRelatedResults([])
     setTrackedIssues([])
     setIssueReport('')
     setWorkspaceNotice('')
@@ -490,6 +492,12 @@ function App(): React.JSX.Element {
     else setWorkspaceNotice(result.error || 'No se pudo consultar el índice.')
   }
 
+  async function showNodeRelations(path: string): Promise<void> {
+    const result = await window.api.workspace.relatedNodes({ worldId: selectedWorldId, path, limit: 60 })
+    if (result.success) setRelatedResults(result.results)
+    else setWorkspaceNotice(result.error || 'No se pudieron consultar las relaciones.')
+  }
+
   async function changeIssueStatus(issueId: string, status: 'investigating' | 'fixed-pending-validation' | 'resolved' | 'false-positive'): Promise<void> {
     const result = await window.api.workspace.updateIssue({ worldId: selectedWorldId, issueId, status, detail: 'Estado actualizado desde la interfaz.' })
     if (result.success && result.issues) setTrackedIssues(result.issues)
@@ -521,13 +529,22 @@ function App(): React.JSX.Element {
       const retrievalTerms = [...new Set((retrievalText.toLocaleLowerCase().match(/[\\p{L}\\p{N}_-]{4,}/gu) || []).slice(0, 10))].join(' ')
       const indexLookup = await window.api.workspace.searchIndex({ worldId: selectedWorldId, query: retrievalTerms, limit: 80 })
       const indexMatches = indexLookup.success ? indexLookup.results.slice(0, 35) : []
+      const relationLookups = await Promise.all(indexMatches.slice(0, 12).map((item) =>
+        window.api.workspace.relatedNodes({ worldId: selectedWorldId, path: item.path, limit: 8 })
+      ))
+      const relationshipMatches = relationLookups.flatMap((lookup) => lookup.success ? lookup.results.map((entry) => ({
+        path: entry.node.path, key: entry.node.key, kind: entry.node.kind,
+        preview: entry.node.preview, childCount: entry.node.childCount,
+        direction: entry.direction, matchedValue: entry.relationship.matchedValue
+      })) : [])
+      const contextNodes = [...new Map([...indexMatches, ...relationshipMatches].map((item) => [item.path, item])).values()]
       const retrievalBudget = { remaining: 18000 }
-      const retrievedFragments = indexMatches.slice(0, 20).map((item) => {
+      const retrievedFragments = contextNodes.slice(0, 25).map((item) => {
         const path = item.path ? item.path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~')) : []
         const found = readPath(selectedWorldDraft, path)
         return { path: item.path, value: found.exists ? summarizeForAI(found.value, 0, retrievalBudget) : item.preview }
       })
-      const indexedRootKeys = [...new Set(indexMatches.map((item) => item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~')).filter((key): key is string => Boolean(key) && sectionKeys.includes(key)))]
+      const indexedRootKeys = [...new Set(contextNodes.map((item) => item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~')).filter((key): key is string => Boolean(key) && sectionKeys.includes(key)))]
       const selectionPrompt = [
         'Eres un analista de mundos de Voyage Creator Studio.',
         'Elige las secciones raíz más relevantes para esta tarea. Devuelve solo JSON: {"sections":["claveRaiz"],"reason":"motivo breve"}.',
@@ -535,7 +552,7 @@ function App(): React.JSX.Element {
         'Claves disponibles: ' + JSON.stringify(sectionKeys),
         'TAREA: ' + task,
         'ESTADO DEL ÍNDICE LOCAL: ' + (worldIndex?.complete ? 'completo' : 'parcial o no disponible') + '. El índice es una ayuda de recuperación, no sustituye al GameState.',
-        'PISTAS DEL ÍNDICE LOCAL (rutas y fragmentos recuperados por búsqueda; prioriza estas secciones si son pertinentes): ' + JSON.stringify({ indexedRootKeys, matches: indexMatches }),
+        'PISTAS DEL ÍNDICE LOCAL (búsqueda textual y relaciones exactas no ambiguas; los enlaces son pistas, no prueba semántica): ' + JSON.stringify({ indexedRootKeys, matches: indexMatches, relationshipMatches }),
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
         'RESUMEN ESTRUCTURAL DEL MUNDO: ' + JSON.stringify(structuralSummary)
@@ -571,7 +588,7 @@ function App(): React.JSX.Element {
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
         'SECCIONES SELECCIONADAS: ' + selectedKeys.join(', '),
-        'FRAGMENTOS RECUPERADOS DEL ÍNDICE LOCAL (datos leídos desde las rutas exactas del borrador actual): ' + JSON.stringify(retrievedFragments.filter((item) => selectedKeys.includes(item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~') || '')).slice(0, 20)),
+        'FRAGMENTOS RECUPERADOS DEL ÍNDICE Y SU GRAFO (datos leídos desde rutas exactas del borrador actual; las relaciones se infieren solo por coincidencia exacta de nombre): ' + JSON.stringify(retrievedFragments.filter((item) => selectedKeys.includes(item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~') || '')).slice(0, 20)),
         'RESUMEN DE LAS SECCIONES (las rutas corresponden a las claves originales):',
         JSON.stringify(focusedWorld),
         'METADATOS EXACTOS DE ARRAYS EN LAS SECCIONES (path JSON Pointer, longitud real e índices realmente incluidos en el resumen): ' + JSON.stringify(collectArrayMetadata(selectedWorldDraft, selectedKeys)),
@@ -1022,7 +1039,7 @@ function App(): React.JSX.Element {
                           <span>{indexBusy ? 'GENERANDO...' : worldIndex ? worldIndex.nodeCount.toLocaleString() + (worldIndex.complete ? ' NODOS' : ' NODOS · PARCIAL') : 'SIN ÍNDICE'}</span>
                         </div>
                         <p className="helper">Índice estructural local del GameState. Conserva rutas JSON Pointer exactas y permite localizar contenido sin enviar todo el mundo a LM Studio.</p>
-                        {worldIndex && <p className="helper">Actualizado: {formatDate(worldIndex.generatedAt)} · Secciones raíz: {worldIndex.rootKeys.length}</p>}
+                        {worldIndex && <p className="helper">Actualizado: {formatDate(worldIndex.generatedAt)} · Secciones raíz: {worldIndex.rootKeys.length} · Relaciones exactas: {worldIndex.relationshipCount}</p>}
                         {workspaceNotice && <p className="helper" role="status">{workspaceNotice}</p>}
                         <div className="index-search-row">
                           <input value={indexQuery} onChange={(event) => setIndexQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void searchWorldKnowledge() }} placeholder="Buscar facciones, NPCs, habilidades, términos..." />
@@ -1033,6 +1050,15 @@ function App(): React.JSX.Element {
                           {indexResults.map((item) => <article className="index-result" key={item.path}>
                             <strong>{item.key}</strong><code>{item.path}</code>
                             <span>{item.kind} · {item.childCount} elementos</span><p>{item.preview}</p>
+                            <button className="secondary-button" onClick={() => void showNodeRelations(item.path)}>Ver relaciones</button>
+                          </article>)}
+                        </div>}
+                        {relatedResults.length > 0 && <div className="index-results">
+                          <strong>Relaciones encontradas · {relatedResults.length}</strong>
+                          <p className="helper">Coincidencias exactas de nombres entre valores de texto y objetos/arrays. No se consideran referencias confirmadas por el esquema.</p>
+                          {relatedResults.map((item, index) => <article className="index-result" key={item.node.path + item.direction + index}>
+                            <strong>{item.direction === 'outgoing' ? 'Referencia hacia' : 'Referenciado desde'}: {item.node.key}</strong>
+                            <code>{item.node.path}</code><span>Coincidencia: {item.relationship.matchedValue}</span><p>{item.node.preview}</p>
                           </article>)}
                         </div>}
                         <div className="world-browser-heading issue-heading">
