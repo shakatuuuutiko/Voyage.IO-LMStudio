@@ -117,9 +117,14 @@ export class VoyageCreatorClient {
     }
   }
 
+  async listWorlds(): Promise<unknown> {
+    // The list response is not fully described in OpenAPI; preserve it without guessing.
+    const response = await this.request<unknown>('/worlds?page=0&type=world')
+    return response.data
+  }
+
   async testConnection(): Promise<VoyageConnectionResult> {
-    // The list response is not fully described in OpenAPI; do not infer its shape.
-    await this.request<unknown>('/worlds?page=0&type=world')
+    await this.listWorlds()
     return {
       success: true,
       message: 'Conexión autenticada con Voyage Creator API correcta.'
