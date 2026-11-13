@@ -1,5 +1,45 @@
 import { useEffect, useRef, useState } from 'react'
 
+interface VoyageWorldSummary {
+  id: string
+  shortId: string
+  title: string
+  description?: string | null
+  advancedDescription?: string | null
+  image?: string | null
+  updatedAt?: string
+  createdAt?: string
+  visibility?: string
+  published?: boolean
+  publishedAt?: string | null
+  mods?: Array<{ shortId: string; version: number }>
+  tags?: string[]
+  contentRating?: string
+  isLocked?: boolean
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseWorldList(value: unknown): { worlds: VoyageWorldSummary[]; totalCount: number } {
+  if (!isRecord(value) || !isRecord(value.data) || !Array.isArray(value.data.worlds)) {
+    throw new Error('La respuesta de Voyage no coincide con el formato data.worlds. Se conserva la respuesta sin interpretarla.')
+  }
+
+  const worlds = value.data.worlds.filter((item): item is VoyageWorldSummary =>
+    isRecord(item) && typeof item.shortId === 'string' && typeof item.title === 'string'
+  )
+  const totalCount = typeof value.data.totalCount === 'number' ? value.data.totalCount : worlds.length
+  return { worlds, totalCount }
+}
+
+function formatDate(value?: string): string {
+  if (!value) return 'No disponible'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
 function App(): React.JSX.Element {
   const [models, setModels] = useState<string[]>([])
   const [selectedModel, setSelectedModel] = useState('')
@@ -15,6 +55,13 @@ function App(): React.JSX.Element {
   const [voyageNotice, setVoyageNotice] = useState('')
   const [worldListBusy, setWorldListBusy] = useState(false)
   const [worldListOutput, setWorldListOutput] = useState('')
+  const [voyageWorlds, setVoyageWorlds] = useState<VoyageWorldSummary[]>([])
+  const [worldTotalCount, setWorldTotalCount] = useState(0)
+  const [selectedWorldId, setSelectedWorldId] = useState('')
+  const [selectedWorldTitle, setSelectedWorldTitle] = useState('')
+  const [selectedWorldEtag, setSelectedWorldEtag] = useState<string | null>(null)
+  const [selectedWorldJson, setSelectedWorldJson] = useState('')
+  const [worldReadBusy, setWorldReadBusy] = useState(false)
   const apiKeyInput = useRef<HTMLInputElement>(null)
 
   async function loadModels(): Promise<void> {
@@ -108,12 +155,40 @@ function App(): React.JSX.Element {
     setWorldListOutput('')
     try {
       const result = await window.api.voyage.listWorlds()
-      if (result.success) setWorldListOutput(JSON.stringify(result.worlds ?? null, null, 2))
-      else setWorldListOutput(result.error || 'No se pudo obtener la lista de mundos.')
+      if (!result.success) throw new Error(result.error || 'No se pudo obtener la lista de mundos.')
+      const parsed = parseWorldList(result.worlds)
+      setVoyageWorlds(parsed.worlds)
+      setWorldTotalCount(parsed.totalCount)
+      setSelectedWorldId('')
+      setSelectedWorldTitle('')
+      setSelectedWorldEtag(null)
+      setSelectedWorldJson('')
+      setWorldListOutput('')
     } catch (error) {
       setWorldListOutput(error instanceof Error ? error.message : 'Error al consultar los mundos.')
     } finally {
       setWorldListBusy(false)
+    }
+  }
+
+  async function openVoyageWorld(world: VoyageWorldSummary): Promise<void> {
+    if (worldReadBusy) return
+    setWorldReadBusy(true)
+    setSelectedWorldId(world.shortId)
+    setSelectedWorldTitle(world.title)
+    setSelectedWorldEtag(null)
+    setSelectedWorldJson('')
+    try {
+      const result = await window.api.voyage.readWorld(world.shortId)
+      if (!result.success || !result.world) {
+        throw new Error(result.error || 'No se pudo descargar el documento del mundo.')
+      }
+      setSelectedWorldEtag(result.etag ?? null)
+      setSelectedWorldJson(JSON.stringify(result.world, null, 2))
+    } catch (error) {
+      setSelectedWorldJson(error instanceof Error ? error.message : 'Error al leer el mundo.')
+    } finally {
+      setWorldReadBusy(false)
     }
   }
 
@@ -295,9 +370,54 @@ function App(): React.JSX.Element {
               {worldListBusy ? 'Consultando mundos...' : 'Consultar mis mundos'}
             </button>
             {worldListOutput && <div className="world-list-inspector">
-              <div className="helper">RESPUESTA REAL DE VOYAGE (SOLO LECTURA)</div>
+              <div className="helper">RESULTADO DE LA CONSULTA</div>
               <pre>{worldListOutput}</pre>
             </div>}
+            {voyageWorlds.length > 0 && (
+              <div className="voyage-world-browser">
+                <div className="world-browser-heading">
+                  <strong>MIS MUNDOS</strong>
+                  <span>{voyageWorlds.length} de {worldTotalCount}</span>
+                </div>
+                {voyageWorlds.map((world) => (
+                  <article className={`voyage-world-card ${selectedWorldId === world.shortId ? 'selected' : ''}`} key={world.shortId}>
+                    {world.image ? (
+                      <img className="voyage-world-cover" src={world.image} alt="" />
+                    ) : (
+                      <div className="voyage-world-cover world-cover-empty">SIN PORTADA</div>
+                    )}
+                    <div className="voyage-world-card-content">
+                      <strong>{world.title}</strong>
+                      <p>{world.description || 'Sin descripción'}</p>
+                      <div className="world-meta">
+                        <span>{world.visibility || 'Visibilidad desconocida'}</span>
+                        <span>{world.published ? 'Publicado' : 'No publicado'}</span>
+                        <span>{world.mods?.length ?? 0} mods</span>
+                      </div>
+                      <button
+                        className="secondary-button"
+                        onClick={() => void openVoyageWorld(world)}
+                        disabled={worldReadBusy}
+                      >
+                        {worldReadBusy && selectedWorldId === world.shortId ? 'Descargando...' : 'Abrir / leer mundo'}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {selectedWorldId && (
+                  <div className="world-detail-panel">
+                    <div className="world-browser-heading">
+                      <strong>{selectedWorldTitle}</strong>
+                      <span>SOLO LECTURA</span>
+                    </div>
+                    <p className="helper">shortId: {selectedWorldId}</p>
+                    <p className="helper">ETag: {selectedWorldEtag || 'Voyage no devolvió ETag'}</p>
+                    {worldReadBusy && <p className="helper">Descargando documento completo...</p>}
+                    {selectedWorldJson && <pre>{selectedWorldJson}</pre>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </aside>
 
