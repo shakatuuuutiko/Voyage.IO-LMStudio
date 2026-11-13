@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 interface VoyageWorldSummary {
   shortId: string
@@ -301,6 +301,10 @@ function App(): React.JSX.Element {
   const [issueReport, setIssueReport] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
   const proposalRequestInput = useRef<HTMLTextAreaElement>(null)
+  const snapshotComparison = useMemo(
+    () => snapshotPreview && selectedWorldDraft ? buildProposalDiff(snapshotPreview.gameState, selectedWorldDraft, 20) : [],
+    [snapshotPreview, selectedWorldDraft]
+  )
 
   async function loadModels(): Promise<void> {
     setConnection('loading')
@@ -404,6 +408,8 @@ function App(): React.JSX.Element {
       setSelectedWorldJson('')
       setSelectedWorldInitialGameState(null)
       setSelectedWorldDraft(null)
+      setDraftSnapshots([])
+      setSnapshotPreview(null)
       setProposalChanges([])
       setSelectedProposalPaths([])
       setProposalSuggestions([])
@@ -434,6 +440,8 @@ function App(): React.JSX.Element {
     setIndexResults([])
     setRelatedResults([])
     setTrackedIssues([])
+    setDraftSnapshots([])
+    setSnapshotPreview(null)
     setIssueReport('')
     setWorkspaceNotice('')
     setProposalChanges([])
@@ -507,7 +515,7 @@ function App(): React.JSX.Element {
       worldId, gameState, source, label
     })
     if (!result.success) throw new Error(result.error || 'No se pudo guardar el snapshot local.')
-    await refreshDraftSnapshots(selectedWorldId)
+    await refreshDraftSnapshots(worldId)
   }
 
   async function inspectDraftSnapshot(snapshotId: string): Promise<void> {
@@ -1347,10 +1355,10 @@ function App(): React.JSX.Element {
                         {snapshotPreview && selectedWorldDraft && <div className="proposal-diff">
                           <strong>Comparación: snapshot seleccionado frente al borrador actual</strong>
                           <span className="helper">{snapshotPreview.summary.label || snapshotPreview.summary.source} · {formatDate(snapshotPreview.summary.createdAt)}</span>
-                          {buildProposalDiff(snapshotPreview.gameState, selectedWorldDraft, 20).map((entry, index) => <div className="proposal-diff-row" key={entry.path + index}>
+                          {snapshotComparison.map((entry, index) => <div className="proposal-diff-row" key={entry.path + index}>
                             <code>{entry.path}</code><span className="proposal-diff-before">{entry.before}</span><span className="proposal-diff-after">{entry.after}</span>
                           </div>)}
-                          {buildProposalDiff(snapshotPreview.gameState, selectedWorldDraft, 20).length === 0 && <p className="helper">El snapshot y el borrador actual no presentan diferencias detectables.</p>}
+                          {snapshotComparison.length === 0 && <p className="helper">El snapshot y el borrador actual no presentan diferencias detectables.</p>}
                           <button className="secondary-button" onClick={() => setSnapshotPreview(null)}>Cerrar comparación</button>
                         </div>}
                         <div className="world-browser-heading issue-heading">
