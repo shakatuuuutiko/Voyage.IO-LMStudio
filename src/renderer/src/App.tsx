@@ -287,7 +287,7 @@ function App(): React.JSX.Element {
       const instruction = [
         'Eres un asistente que propone cambios para un mundo de Voyage Creator Studio.',
         'Devuelve exclusivamente un objeto JSON válido, sin Markdown ni bloques de código.',
-        'Formato exacto: {"changes":[{"key":"nombreDePropiedad","value":<valor JSON>,"reason":"motivo breve"}]}.',
+        'Formato exacto: {"changes":[{"key":"nombreDePropiedad","value":"valor propuesto","reason":"motivo breve"}]}. El campo value puede ser string, número, booleano, array, objeto o null según el tipo de dato esperado.',
         'Solo puedes modificar propiedades directas del objeto de sección proporcionado. No devuelvas rutas, operaciones, código ni propiedades fuera de esa sección.',
         'No incluyas la clave "__proto__", "prototype" ni "constructor". No inventes propiedades de estructura del mundo si no son necesarias.',
         'Máximo 20 cambios. Si no hay cambios necesarios, devuelve {"changes":[]}.',
