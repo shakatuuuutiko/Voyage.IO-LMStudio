@@ -1145,7 +1145,7 @@ function App(): React.JSX.Element {
                   <div className="world-detail-panel">
                     <div className="world-browser-heading">
                       <strong>{selectedWorldTitle}</strong>
-                      <span>SOLO LECTURA</span>
+                      <span>BORRADOR LOCAL · GUARDADO MANUAL</span>
                     </div>
                     <p className="helper">shortId: {selectedWorldId}</p>
                     <p className="helper">ETag: {selectedWorldEtag || 'Voyage no devolvió ETag'}</p>
