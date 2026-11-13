@@ -113,6 +113,7 @@ button:disabled, select:disabled, textarea:disabled {
 
 .sidebar {
   padding: 25px 18px;
+  overflow-y: auto;
   border-right: 1px solid #292d38;
   background: #151820;
 }
@@ -140,7 +141,7 @@ button:disabled, select:disabled, textarea:disabled {
   font-size: 11px;
 }
 
-.panel select {
+.panel select, .panel input {
   width: 100%;
   padding: 10px;
   border: 1px solid #363c4b;
@@ -149,6 +150,18 @@ button:disabled, select:disabled, textarea:disabled {
   color: #e8eaf0;
   background: #11141b;
   font-size: 12px;
+}
+
+.panel input::placeholder {
+  color: #70798b;
+}
+
+.panel input:focus {
+  border-color: #7668e8;
+}
+
+.security-warning {
+  color: #e3a36c;
 }
 
 .secondary-button {
