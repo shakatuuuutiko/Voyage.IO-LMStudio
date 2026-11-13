@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { VoyageCreatorClient } from '../services/voyage/client'
+import { VoyageApiError, VoyageCreatorClient } from '../services/voyage/client'
 import {
   deleteVoyageApiKey,
   isVoyageCredentialEncryptionAvailable,
@@ -10,6 +10,18 @@ import {
 const API_KEY_PREFIX = 'sk-voyage-v1-'
 
 function getErrorMessage(error: unknown): string {
+  if (error instanceof VoyageApiError) {
+    const { status, code, requestId, retryAfterSeconds } = error.details
+    const details = [
+      `HTTP ${status}`,
+      code,
+      requestId ? `requestId: ${requestId}` : undefined,
+      retryAfterSeconds !== undefined ? `reintentar en ${retryAfterSeconds}s` : undefined
+    ].filter(Boolean)
+
+    return `${details.join(' · ')} — ${error.message}`
+  }
+
   return error instanceof Error ? error.message : 'Error desconocido.'
 }
 
