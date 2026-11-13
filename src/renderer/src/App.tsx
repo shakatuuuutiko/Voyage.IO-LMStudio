@@ -453,7 +453,7 @@ function App(): React.JSX.Element {
       setSelectedWorldInitialGameState(result.world.initialGameState)
       setSelectedWorldDraft(JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>)
       try {
-        await createDraftCheckpoint('world-opened', 'Estado descargado de Voyage', JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>)
+        await createDraftCheckpoint('world-opened', 'Estado descargado de Voyage', JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>, world.shortId)
       } catch (snapshotError) {
         setWorkspaceNotice(snapshotError instanceof Error ? snapshotError.message : 'No se pudo crear el snapshot inicial.')
       }
@@ -499,11 +499,12 @@ function App(): React.JSX.Element {
   async function createDraftCheckpoint(
     source: 'world-opened' | 'manual-checkpoint' | 'before-proposal' | 'proposal-applied' | 'draft-reset' | 'before-restore' | 'remote-saved',
     label: string,
-    gameState = selectedWorldDraft
+    gameState = selectedWorldDraft,
+    worldId = selectedWorldId
   ): Promise<void> {
-    if (!selectedWorldId || !gameState) return
+    if (!worldId || !gameState) return
     const result = await window.api.workspace.createDraftSnapshot({
-      worldId: selectedWorldId, gameState, source, label
+      worldId, gameState, source, label
     })
     if (!result.success) throw new Error(result.error || 'No se pudo guardar el snapshot local.')
     await refreshDraftSnapshots(selectedWorldId)
@@ -1046,9 +1047,11 @@ function App(): React.JSX.Element {
   async function discardDraftChanges(): Promise<void> {
     if (!selectedWorldInitialGameState) return
     const restored = JSON.parse(JSON.stringify(selectedWorldInitialGameState)) as Record<string, unknown>
-    try { await createDraftCheckpoint('draft-reset', 'Borrador restaurado a la versión descargada') }
+    try { await createDraftCheckpoint('before-restore', 'Copia anterior al reinicio') }
     catch (error) { setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot previo al reinicio.') }
     setSelectedWorldDraft(restored)
+    try { await createDraftCheckpoint('draft-reset', 'Borrador restaurado a la versión descargada', restored) }
+    catch (error) { setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot restaurado.') }
     if (selectedWorldId) {
       const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: restored })
       if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
