@@ -536,7 +536,7 @@ function App(): React.JSX.Element {
           <div className="section-label">GENERACIÓN</div>
           <div className="panel">
             <label htmlFor="tokens">Presupuesto máximo de tokens</label>
-            <select
+            <input
               id="tokens"
               type="number"
               min={256}
@@ -544,7 +544,7 @@ function App(): React.JSX.Element {
               step={256}
               value={maxTokens}
               onChange={(event) => setMaxTokens(event.target.value)}
-              disabled={busy}
+              disabled={busy || proposalBusy}
             />
             <p className="helper">
               Tokens máximos de salida (256–65.536). También se usan al generar propuestas. La ventana de contexto de entrada se configura por separado en LM Studio.
