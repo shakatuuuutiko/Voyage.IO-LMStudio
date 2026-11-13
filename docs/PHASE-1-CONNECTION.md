@@ -1,0 +1,59 @@
+# Phase 1 — Voyage connection foundation
+
+Branch: `feature/voyage-creator-api`
+
+## Implemented
+
+- Production-only base URL: `https://api.aidungeon.com/creator/v1`.
+- Main-process authenticated HTTP client with a 30-second timeout and structured HTTP error details.
+- Connection check uses `GET /worlds?page=0&type=world`. It does not assume undocumented response properties.
+- Player API key is validated for the documented `sk-voyage-v1-` prefix and non-empty token.
+- Electron `safeStorage` encrypts the key before it is written under the app's user-data directory.
+- The storage layer rejects unavailable encryption and Electron's `basic_text` backend.
+- The renderer receives only status/result objects. The key is not returned from main-process IPC.
+- Existing LM Studio IPC channels and behavior are preserved.
+- BrowserWindow explicitly declares `contextIsolation: true` and `nodeIntegration: false`. `sandbox` remains false until preload compatibility is tested.
+
+## Configure the key
+
+1. Open a world in Voyage Creator Studio.
+2. Select **Settings → API keys**.
+3. Enter a label and select **Generate**.
+4. Copy the key immediately; Voyage shows it only once.
+5. In Voyage AI Companion, paste it into **Cuenta Voyage → Player API Key** and select **Guardar API Key**.
+6. Select **Probar conexión**. A successful result confirms authenticated access to the owned-world listing endpoint.
+7. Restart the app and confirm the status still says the key is saved. The key itself should not reappear in the password field.
+8. Use **Eliminar API Key** to remove the encrypted local credential.
+
+Never paste the key into a chat, issue, log, source file, or screenshot.
+
+## Local verification on Windows
+
+From the repository directory in PowerShell:
+
+```powershell
+git fetch origin
+git switch feature/voyage-creator-api
+git pull
+npm ci
+npm run typecheck
+npm run build
+npm run dev
+```
+
+Then verify:
+
+- The app opens without a preload/IPC error.
+- LM Studio still lists models and returns a chat response.
+- Voyage key save works and the field clears after saving.
+- The saved-key status survives an app restart.
+- The connection test succeeds with an eligible key.
+- Clearing the key changes the status to unconfigured.
+
+If the API test returns 401 or 403, do not share the key. Report only the HTTP status and sanitized error text; the key may be invalid, revoked, missing the required scope, or the account may not have the required rollout access.
+
+## Not yet implemented
+
+No world content is read or modified yet. The next stage depends on capturing real successful responses for `GET /worlds` and `GET /worlds/{shortId}`, including the actual ETag and envelope shape. The official OpenAPI does not define these response schemas fully, so this is a deliberate integration checkpoint.
+
+No publication, unpublication, world replacement, revision restore, moderation, media upload, or other mutating Voyage operation is exposed by this phase.
