@@ -11,6 +11,7 @@ const api = {
     getStatus: () => ipcRenderer.invoke('voyage:get-status'),
     saveApiKey: (apiKey: string) => ipcRenderer.invoke('voyage:save-api-key', apiKey),
     testConnection: () => ipcRenderer.invoke('voyage:test-connection'),
+    readWorld: (shortId: string) => ipcRenderer.invoke('voyage:read-world', shortId),
     clearApiKey: () => ipcRenderer.invoke('voyage:clear-api-key')
   }
 }
