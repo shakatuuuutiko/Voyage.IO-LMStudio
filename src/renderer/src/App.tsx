@@ -484,10 +484,7 @@ function App(): React.JSX.Element {
         }
         const current = readPath(selectedWorldDraft, path)
         const leaf = path[path.length - 1]
-        if (false && !current.exists) {
-          throw new Error(`El cambio ${index + 1} intenta eliminar una propiedad que no existe: ${path.join('.')}`)
-        }
-        if (Array.isArray(parent.value) && (!/^\d+$/.test(leaf) || Number(leaf) > parent.value.length || (false && Number(leaf) >= parent.value.length))) {
+        if (Array.isArray(parent.value) && (!/^\d+$/.test(leaf) || Number(leaf) > parent.value.length)) {
           throw new Error(`El cambio ${index + 1} contiene un índice de array no permitido: ${path.join('.')}`)
         }
         return { path, value: item.value, previousValue: current.value, existed: current.exists,
