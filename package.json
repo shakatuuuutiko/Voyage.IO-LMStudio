@@ -1,7 +1,7 @@
 {
   "name": "voyage-io",
   "version": "1.0.0",
-  "description": "Local LM Studio companion for managing Voyage Creator Studio worlds through the Creator API.",
+  "description": "VoyAgent — local AI companion for Voyage Creator Studio, powered by LM Studio.",
   "main": "./out/main/index.js",
   "homepage": "https://github.com/shakatuuuutiko/Voyage.IO-LMStudio",
   "scripts": {
