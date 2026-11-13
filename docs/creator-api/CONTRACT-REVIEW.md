@@ -91,15 +91,18 @@ Music is separate: MP3/WAV/OGG/M4A, up to 25 MiB per guide, signed direct upload
 Implemented in this branch:
 
 - Main-process Voyage HTTP client for authenticated connection checks.
-- Encrypted key storage through Electron `safeStorage`.
-- IPC methods to inspect key status, save, test and clear a key.
+- Encrypted key storage through Electron `safeStorage`, rejecting the insecure `basic_text` backend.
+- IPC methods to inspect key status, save, test and clear a key. The key is never returned to the renderer.
 - Typed preload bridge extension. Existing LM Studio IPC methods remain unchanged.
+- Initial renderer controls for key entry, save, test and clear. The input is uncontrolled and cleared after a successful save.
+- Explicit `contextIsolation: true` and `nodeIntegration: false` in BrowserWindow.
 
 Not implemented yet:
 
 - World listing, reading, local snapshots, editing, validation and synchronization.
 - Revisions, restore, moderation, media and publication workflows.
-- UI for key setup and world management.
 - Live API integration test and Windows build.
+
+The live connection check currently calls `GET /worlds?page=0&type=world` and intentionally does not parse its undocumented response structure.
 
 The current connection test intentionally treats a successful authenticated `GET /worlds?page=0&type=world` as success without parsing the undocumented response shape.
