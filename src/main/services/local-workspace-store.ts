@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { join } from 'path'
 
 export interface WorldIndexNode {
@@ -315,4 +315,124 @@ export async function updateTrackedIssue(
   issue.history.push({ at: now, action: 'status-changed', detail: detail || `Estado cambiado a ${status}.` })
   await atomicWrite(file, issues)
   return issues
+}
+
+
+export interface DraftSnapshotSummary {
+  id: string
+  worldId: string
+  createdAt: string
+  source: 'world-opened' | 'manual-checkpoint' | 'before-proposal' | 'proposal-applied' | 'draft-reset' | 'before-restore' | 'remote-saved'
+  label: string
+  bytes: number
+  sha256: string
+}
+
+interface DraftSnapshotManifest {
+  schemaVersion: 1
+  worldId: string
+  snapshots: DraftSnapshotSummary[]
+}
+
+const MAX_DRAFT_SNAPSHOTS = 20
+const MAX_DRAFT_SNAPSHOT_BYTES = 25 * 1024 * 1024
+const MAX_DRAFT_HISTORY_BYTES = 80 * 1024 * 1024
+
+function snapshotSource(value: unknown): DraftSnapshotSummary['source'] {
+  const allowed: DraftSnapshotSummary['source'][] = [
+    'world-opened', 'manual-checkpoint', 'before-proposal', 'proposal-applied',
+    'draft-reset', 'before-restore', 'remote-saved'
+  ]
+  if (typeof value !== 'string' || !allowed.includes(value as DraftSnapshotSummary['source'])) {
+    throw new Error('Origen de snapshot no válido.')
+  }
+  return value as DraftSnapshotSummary['source']
+}
+
+async function readSnapshotManifest(worldId: string): Promise<DraftSnapshotManifest> {
+  const directory = await workspaceDir(worldId)
+  const manifest = await readJson<DraftSnapshotManifest>(
+    join(directory, 'draft-history.json'),
+    { schemaVersion: 1, worldId: safeWorldId(worldId), snapshots: [] }
+  )
+  if (manifest.schemaVersion !== 1 || manifest.worldId !== worldId || !Array.isArray(manifest.snapshots)) {
+    throw new Error('El historial local de borradores tiene un formato no válido.')
+  }
+  return manifest
+}
+
+export async function listDraftSnapshots(worldId: string): Promise<DraftSnapshotSummary[]> {
+  const manifest = await readSnapshotManifest(worldId)
+  return [...manifest.snapshots].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export async function readDraftSnapshot(worldId: string, snapshotId: string): Promise<{
+  summary: DraftSnapshotSummary
+  gameState: Record<string, unknown>
+}> {
+  if (!/^[a-f0-9-]{36}$/i.test(snapshotId)) throw new Error('Identificador de snapshot no válido.')
+  const manifest = await readSnapshotManifest(worldId)
+  const summary = manifest.snapshots.find((item) => item.id === snapshotId)
+  if (!summary) throw new Error('No se encontró el snapshot solicitado.')
+  const directory = await workspaceDir(worldId)
+  const gameState = await readJson<Record<string, unknown> | null>(
+    join(directory, 'draft-snapshots', snapshotId + '.json'),
+    null
+  )
+  if (!gameState || typeof gameState !== 'object' || Array.isArray(gameState)) {
+    throw new Error('El contenido del snapshot no existe o está dañado.')
+  }
+  const serialized = JSON.stringify(gameState)
+  const digest = createHash('sha256').update(serialized).digest('hex')
+  if (digest !== summary.sha256) throw new Error('La integridad del snapshot no coincide; no se restaurará.')
+  return { summary, gameState }
+}
+
+export async function createDraftSnapshot(input: {
+  worldId: string
+  gameState: Record<string, unknown>
+  source: DraftSnapshotSummary['source']
+  label?: string
+}): Promise<DraftSnapshotSummary> {
+  const worldId = safeWorldId(input.worldId)
+  if (!input.gameState || typeof input.gameState !== 'object' || Array.isArray(input.gameState)) {
+    throw new Error('El snapshot requiere un GameState de tipo objeto.')
+  }
+  const source = snapshotSource(input.source)
+  const serialized = JSON.stringify(input.gameState)
+  const bytes = Buffer.byteLength(serialized, 'utf8')
+  if (bytes > MAX_DRAFT_SNAPSHOT_BYTES) {
+    throw new Error('El borrador supera el límite local de 25 MiB para un snapshot. No se guardó.')
+  }
+  const sha256 = createHash('sha256').update(serialized).digest('hex')
+  const manifest = await readSnapshotManifest(worldId)
+  const duplicate = manifest.snapshots.find((item) => item.sha256 === sha256)
+  if (duplicate) return duplicate
+
+  const directory = await workspaceDir(worldId)
+  const snapshotDirectory = join(directory, 'draft-snapshots')
+  await mkdir(snapshotDirectory, { recursive: true })
+  const summary: DraftSnapshotSummary = {
+    id: randomUUID(),
+    worldId,
+    createdAt: new Date().toISOString(),
+    source,
+    label: typeof input.label === 'string' ? input.label.slice(0, 120) : '',
+    bytes,
+    sha256
+  }
+  await atomicWrite(join(snapshotDirectory, summary.id + '.json'), input.gameState)
+  manifest.snapshots.push(summary)
+  manifest.snapshots.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+  let totalBytes = manifest.snapshots.reduce((total, item) => total + item.bytes, 0)
+  while (manifest.snapshots.length > MAX_DRAFT_SNAPSHOTS || totalBytes > MAX_DRAFT_HISTORY_BYTES) {
+    const removed = manifest.snapshots.pop()
+    if (!removed) break
+    totalBytes -= removed.bytes
+    try { await import('fs/promises').then(({ unlink }) => unlink(join(snapshotDirectory, removed.id + '.json'))) }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+  }
+  await atomicWrite(join(directory, 'draft-history.json'), manifest)
+  return summary
 }
