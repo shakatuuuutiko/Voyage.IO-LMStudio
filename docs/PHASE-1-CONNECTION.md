@@ -62,3 +62,16 @@ If the API test returns 401 or 403, do not share the key. Report only the HTTP s
 The read-only single-world download path is implemented, but it has not been tested against a live account. The next stage depends on capturing successful responses for `GET /worlds` and `GET /worlds/{shortId}`. The list response is undocumented in OpenAPI, and the single-world envelope is specified by the guide as `data.world`; a live response must confirm both envelope and ETag behavior before building the visible world browser or any edit/sync operation.
 
 No publication, unpublication, world replacement, revision restore, moderation, media upload, or other mutating Voyage operation is exposed by this phase.
+
+
+## Live worlds-list inspection
+
+The application now exposes a read-only **Consultar mis mundos** action after a Player API key has been saved.
+
+- The action invokes the existing `GET /worlds?page=0&type=world` client method through main-process IPC.
+- The response is displayed as formatted JSON without assuming undocumented list fields.
+- No world is edited, published, unpublished, reordered, duplicated, or deleted.
+- Use this live response to confirm the list envelope and item fields before implementing the world browser.
+- Do not share API keys or credential-bearing screenshots. The response itself should not contain the API key.
+
+After pulling the feature branch and starting the app, select **Consultar mis mundos**. If the request succeeds, copy the JSON response from the inspector and provide it for schema analysis. If it fails, provide only the HTTP status and sanitized error text.
