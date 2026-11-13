@@ -29,6 +29,8 @@ const api = {
     readWorld: (shortId: string) => ipcRenderer.invoke('voyage:read-world', shortId),
     validateDraft: (initialGameState: Record<string, unknown>) =>
       ipcRenderer.invoke('voyage:validate-draft', initialGameState),
+    saveWorld: (payload: { shortId: string; etag: string; world: Record<string, unknown> }) =>
+      ipcRenderer.invoke('voyage:save-world', payload),
     clearApiKey: () => ipcRenderer.invoke('voyage:clear-api-key')
   }
 }
