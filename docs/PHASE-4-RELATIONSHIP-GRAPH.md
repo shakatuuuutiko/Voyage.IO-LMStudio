@@ -145,3 +145,10 @@ After pulling the branch:
 5. Compare an older snapshot with the current draft and inspect the displayed paths and values.
 6. Restore a snapshot; confirm that the current draft changes, the index refreshes, validation/proposals clear, and the UI explicitly states that Voyage was not modified.
 7. Confirm that the remote-save button remains a separate action and still requires validation and confirmation.
+
+
+## Automatic retries for local recommendations
+
+The **Recommend** action now performs up to three total attempts when it cannot produce a usable result. A usable result contains at least one validated change or at least one non-empty suggestion with both a title and an explanation. Invalid JSON, failed section selection, LM Studio request errors/timeouts, truncated output, and proposals with no usable ideas trigger another attempt. Retry prompts include the preceding failure reason and ask the model to explore different concrete ideas.
+
+The app does not retry after a usable recommendation is produced, even when no safe direct edit exists but explanatory suggestions do. After the third failed attempt, it stops, displays a final diagnostic, and records a `LOCAL_AI_RECOMMENDATION_EXHAUSTED` warning in the per-world issue tracker with the reasons from all three attempts. Other modes (explicit user requests and repairs) retain their existing single-attempt behavior. No retry applies changes automatically.
