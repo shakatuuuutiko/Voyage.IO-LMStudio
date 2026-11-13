@@ -292,6 +292,7 @@ function App(): React.JSX.Element {
   const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
   const [relatedResults, setRelatedResults] = useState<Array<{ direction: 'outgoing' | 'incoming'; node: { path: string; key: string; kind: string; preview: string; childCount: number }; relationship: { sourcePath: string; targetPath: string; matchedValue: string; kind: 'exact-name-reference' }; matchedPath: string }>>([])
   const [trackedIssues, setTrackedIssues] = useState<Array<{ id: string; source: string; severity: string; code: string; message: string; path: string; status: string; occurrences: number; history: Array<{ at: string; action: string; detail: string }> }>>([])
+  const [proposalIssueId, setProposalIssueId] = useState<string | null>(null)
   const [workspaceNotice, setWorkspaceNotice] = useState('')
   const [issueReport, setIssueReport] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
@@ -630,8 +631,12 @@ function App(): React.JSX.Element {
     else setWorkspaceNotice(result.error || 'No se pudo actualizar el problema.')
   }
 
-  async function generateWorldProposal(mode: 'request' | 'recommend' | 'repair' = 'request'): Promise<void> {
+  async function generateWorldProposal(
+    mode: 'request' | 'recommend' | 'repair' = 'request',
+    targetIssue?: (typeof trackedIssues)[number]
+  ): Promise<void> {
     if (!selectedWorldDraft || !selectedModel || proposalBusy) return
+    if (mode === 'repair' && !targetIssue && (!worldValidation || worldValidation.errors.length === 0)) return
     const userRequest = proposalRequestInput.current?.value.trim() || ''
     if (mode === 'request' && !userRequest) return
     setProposalBusy(true)
@@ -640,6 +645,7 @@ function App(): React.JSX.Element {
     setProposalRawResponse('')
     setProposalChanges([])
     setProposalSuggestions([])
+    setProposalIssueId(targetIssue?.id || null)
     try {
       const task = mode === 'recommend'
         ? 'Analiza el mundo y recomienda entre 5 y 8 mejoras concretas y prioritarias: reparaciones, coherencia, contenido, profundidad, sistemas, balance y oportunidades de expansión. No inventes funciones que el esquema no admita.'
@@ -649,9 +655,20 @@ function App(): React.JSX.Element {
       const validationContext = worldValidation
         ? JSON.stringify({ errors: worldValidation.errors, warnings: worldValidation.warnings })
         : 'Sin resultados de validación.'
+      const targetIssueContext = targetIssue ? JSON.stringify({
+        id: targetIssue.id, source: targetIssue.source, severity: targetIssue.severity,
+        code: targetIssue.code, message: targetIssue.message, path: targetIssue.path,
+        status: targetIssue.status, occurrences: targetIssue.occurrences
+      }) : ''
+      const targetPathSegments = targetIssue?.path
+        ? targetIssue.path.replace(/^\\//, '').split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
+        : []
+      const targetPathValue = targetPathSegments.length ? readPath(selectedWorldDraft, targetPathSegments) : null
       const sectionKeys = Object.keys(selectedWorldDraft)
       const structuralSummary = summarizeForAI(selectedWorldDraft)
-      const retrievalText = mode === 'repair' ? validationContext : mode === 'recommend' ? 'factions locations NPCs skills resources items quests combat progression settings world lore' : userRequest
+      const retrievalText = mode === 'repair'
+        ? [validationContext, targetIssueContext].join(' ')
+        : mode === 'recommend' ? 'factions locations NPCs skills resources items quests combat progression settings world lore' : userRequest
       const retrievalTerms = [...new Set((retrievalText.toLocaleLowerCase().match(/[\\p{L}\\p{N}_-]{4,}/gu) || []).slice(0, 10))].join(' ')
       const indexLookup = await window.api.workspace.searchIndex({ worldId: selectedWorldId, query: retrievalTerms, limit: 80 })
       const indexMatches = indexLookup.success ? indexLookup.results.slice(0, 35) : []
@@ -668,6 +685,14 @@ function App(): React.JSX.Element {
       for (const related of relationshipMatches) {
         if (!contextNodes.some((item) => item.path === related.path)) contextNodes.push(related)
       }
+      if (targetIssue?.path && targetPathValue?.exists && !contextNodes.some((item) => item.path === targetIssue.path)) {
+        contextNodes.unshift({
+          path: targetIssue.path, key: targetPathSegments[targetPathSegments.length - 1],
+          kind: Array.isArray(targetPathValue.value) ? 'array' : isRecord(targetPathValue.value) ? 'object' : typeof targetPathValue.value,
+          preview: summarizeForAI(targetPathValue.value, 0, { remaining: 2500 }),
+          terms: targetIssue.code + ' ' + targetIssue.message, childCount: 0
+        })
+      }
       const retrievalBudget = { remaining: 18000 }
       const retrievedFragments = contextNodes.slice(0, 25).map((item) => {
         const path = item.path ? item.path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~')) : []
@@ -675,6 +700,7 @@ function App(): React.JSX.Element {
         return { path: item.path, value: found.exists ? summarizeForAI(found.value, 0, retrievalBudget) : item.preview }
       })
       const indexedRootKeys = [...new Set(contextNodes.map((item) => item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~')).filter((key): key is string => Boolean(key) && sectionKeys.includes(key)))]
+      const targetRootKey = targetPathSegments[0]
       const selectionPrompt = [
         'Eres un analista de mundos de Voyage Creator Studio.',
         'Elige las secciones raíz más relevantes para esta tarea. Devuelve solo JSON: {"sections":["claveRaiz"],"reason":"motivo breve"}.',
@@ -685,6 +711,8 @@ function App(): React.JSX.Element {
         'PISTAS DEL ÍNDICE LOCAL (búsqueda textual y relaciones exactas no ambiguas; los enlaces son pistas, no prueba semántica): ' + JSON.stringify({ indexedRootKeys, matches: indexMatches, relationshipMatches }),
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
+        targetIssue ? 'PROBLEMA CONCRETO A INVESTIGAR Y REPARAR: ' + targetIssueContext : '',
+        targetIssue?.path ? 'RUTA EXACTA DEL PROBLEMA: ' + targetIssue.path + '. Prioriza esta sección raíz: ' + (targetRootKey || 'no determinada') : '',
         'RESUMEN ESTRUCTURAL DEL MUNDO: ' + JSON.stringify(structuralSummary)
       ].filter(Boolean).join('\n')
       const selectionResult = await window.api.lmStudio.chat({
@@ -695,7 +723,11 @@ function App(): React.JSX.Element {
       try { selection = JSON.parse(selectionResult.content.trim()) }
       catch { selection = JSON.parse(extractJsonObject(selectionResult.content)) }
       if (!isRecord(selection) || !Array.isArray(selection.sections)) throw new Error('El análisis inicial no devolvió una lista válida de secciones.')
-      const selectedKeys = [...new Set(selection.sections.filter((key): key is string => typeof key === 'string' && sectionKeys.includes(key)))].slice(0, 5)
+      const modelSelectedKeys = selection.sections.filter((key): key is string => typeof key === 'string' && sectionKeys.includes(key))
+      const selectedKeys = [...new Set([
+        ...(mode === 'repair' && targetRootKey && sectionKeys.includes(targetRootKey) ? [targetRootKey] : []),
+        ...modelSelectedKeys
+      ])].slice(0, 5)
       if (selectedKeys.length === 0) throw new Error('La IA no seleccionó ninguna sección válida del mundo. Reintenta o formula una petición más concreta.')
       const sectionBudget = { remaining: 65000 }
       const focusedWorld = Object.fromEntries(selectedKeys.map((key) => [key, summarizeForAI(selectedWorldDraft[key], 0, sectionBudget)]))
@@ -717,6 +749,8 @@ function App(): React.JSX.Element {
         'TAREA:', task,
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
+        targetIssue ? 'REPARACIÓN DIRIGIDA: ' + targetIssueContext : '',
+        targetIssue?.path ? 'Debes concentrarte primero en la ruta exacta ' + targetIssue.path + '. No modifiques otras secciones salvo que la causa lo exija y exista evidencia en el contexto.' : '',
         'SECCIONES SELECCIONADAS: ' + selectedKeys.join(', '),
         'FRAGMENTOS RECUPERADOS DEL ÍNDICE Y SU GRAFO (datos leídos desde rutas exactas del borrador actual; las relaciones se infieren solo por coincidencia exacta de nombre): ' + JSON.stringify(retrievedFragments.filter((item) => selectedKeys.includes(item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~') || '')).slice(0, 20)),
         'RESUMEN DE LAS SECCIONES (las rutas corresponden a las claves originales):',
@@ -724,7 +758,9 @@ function App(): React.JSX.Element {
         'METADATOS EXACTOS DE ARRAYS EN LAS SECCIONES (path JSON Pointer, longitud real e índices realmente incluidos en el resumen): ' + JSON.stringify(collectArrayMetadata(selectedWorldDraft, selectedKeys)),
         mode === 'recommend'
           ? 'MODO RECOMENDACIÓN: solo puedes modificar propiedades que ya existen. No añadas propiedades nuevas ni posiciones nuevas a arrays. Las ideas que requieran ampliar el esquema deben ir en suggestions, no en changes.'
-          : 'MODO PETICIÓN: puedes proponer una propiedad nueva solo si la petición del usuario exige expresamente crearla y el padre existe. En arrays solo puedes reemplazar un índice existente o añadir exactamente al final; nunca saltar índices.'
+          : mode === 'repair'
+            ? 'MODO REPARACIÓN: aplica el cambio mínimo para corregir el problema concreto. No alteres contenido no relacionado. Si no puedes demostrar una corrección segura, deja changes vacío y explica por qué en suggestions.'
+            : 'MODO PETICIÓN: puedes proponer una propiedad nueva solo si la petición del usuario exige expresamente crearla y el padre existe. En arrays solo puedes reemplazar un índice existente o añadir exactamente al final; nunca saltar índices.'
       ].filter(Boolean).join('\n')
       const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       if (!result.success || !result.content) throw new Error(result.error || 'El modelo no devolvió una propuesta.')
@@ -906,6 +942,15 @@ function App(): React.JSX.Element {
       if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
       setProposalChanges(proposalChanges.filter((change) => !selectedProposalPaths.includes(JSON.stringify(change.path))))
       setSelectedProposalPaths([])
+      if (proposalIssueId) {
+        await window.api.workspace.updateIssue({
+          worldId: selectedWorldId, issueId: proposalIssueId, status: 'fixed-pending-validation',
+          detail: 'Se aplicó una propuesta relacionada al borrador local. Pendiente de validación; no implica que el problema esté resuelto.'
+        })
+        const refreshedIssues = await window.api.workspace.listIssues(selectedWorldId)
+        if (refreshedIssues.success) setTrackedIssues(refreshedIssues.issues)
+        setProposalIssueId(null)
+      }
       setWorldValidation(null)
       setWorldValidationError('')
       setProposalError('Propuesta aplicada únicamente al borrador local en memoria. El mundo remoto no fue modificado.')
@@ -1205,6 +1250,7 @@ function App(): React.JSX.Element {
                             <div className="world-browser-heading"><strong>{issue.code}</strong><span>{issue.severity.toUpperCase()} · {issue.status}</span></div>
                             <p>{issue.message}</p><code>{issue.path || 'Sin ruta'}</code>
                             <span className="helper">Detectado {issue.occurrences} vez/veces</span>
+                            {selectedWorldDraft && issue.status !== 'resolved' && issue.status !== 'false-positive' && <button className="secondary-button" onClick={() => void generateWorldProposal('repair', issue)} disabled={proposalBusy || !selectedModel || worldReadBusy}>Proponer reparación dirigida</button>}
                             {issue.history.length > 0 && <details className="issue-history">
                               <summary>Historial · {issue.history.length} eventos</summary>
                               {issue.history.slice(-10).reverse().map((entry, index) => <div className="issue-history-entry" key={index}>
@@ -1264,6 +1310,7 @@ function App(): React.JSX.Element {
                                 ))}
                               </div>
                             )}
+                            {proposalIssueId && <p className="helper">Esta propuesta está vinculada a un problema concreto. Al aplicar cambios, el problema pasará a «reparación pendiente de validación»; no se marcará como resuelto automáticamente.</p>}
                             {proposalChanges.length > 0 && (
                               <div className="proposal-review">
                                 <strong>Revisión de propuesta · {proposalChanges.length} cambios</strong>
