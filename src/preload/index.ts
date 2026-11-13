@@ -13,7 +13,7 @@ const api = {
     readIndex: (worldId: string) => ipcRenderer.invoke('workspace:read-index', worldId),
     searchIndex: (payload: { worldId: string; query: string; limit?: number }) =>
       ipcRenderer.invoke('workspace:search-index', payload),
-    relatedNodes: (payload: { worldId: string; path: string; limit?: number }) =>
+    relatedNodes: (payload: { worldId: string; paths: string[]; limit?: number }) =>
       ipcRenderer.invoke('workspace:related-nodes', payload),
     listIssues: (worldId: string) => ipcRenderer.invoke('workspace:list-issues', worldId),
     recordIssue: (payload: { worldId: string; source: 'voyage-validation' | 'lm-studio' | 'application' | 'user'; severity: 'error' | 'warning' | 'notice'; code: string; message: string; path?: string }) =>
