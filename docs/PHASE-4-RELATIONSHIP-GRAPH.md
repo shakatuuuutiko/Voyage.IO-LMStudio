@@ -117,3 +117,31 @@ The proposal remains subject to the existing path, type, stale-value, overlap, s
 ### Verification status
 
 The issue-linked repair implementation is committed on the feature branch. It has not yet been checked with the user's local TypeScript compiler or Electron runtime.
+
+
+## Local draft history and recovery
+
+Each world workspace now keeps GameState snapshots under its local Electron user-data directory, separate from the Voyage API and remote world document.
+
+- A baseline snapshot is created when a world is opened.
+- The app records checkpoints around proposal application, draft reset, restoration, and a confirmed remote save. The user can also create a manual checkpoint.
+- Snapshots contain only the GameState object, not API keys or the surrounding world metadata.
+- Each snapshot stores a SHA-256 digest. The app verifies the digest before exposing its GameState for comparison or restoration.
+- Retention is bounded to 20 snapshots and 80 MiB per world; an individual snapshot is limited to 25 MiB. Exact duplicate GameStates reuse the existing snapshot entry.
+- The UI can compare a selected snapshot against the current in-memory draft and restore it after explicit confirmation.
+- Before restoring, the current draft is checkpointed automatically. Restore rebuilds the local index and clears stale proposals and validation results.
+- Snapshot creation and restoration are local-only. Neither action calls the Voyage API or publishes a world. Remote saving remains a separate, validated, explicitly confirmed operation.
+
+The history is stored in `world-workspaces/<shortId>/draft-history.json` and `draft-snapshots/`. Removing application data or the relevant workspace directory removes this local history. The current increment does not provide cloud backup or cross-device synchronization.
+
+### Manual verification
+
+After pulling the branch:
+
+1. Run `npm run typecheck` and `npm run build`.
+2. Open a world and confirm that an initial snapshot appears.
+3. Create a manual checkpoint; confirm that reopening the same unchanged GameState does not create a duplicate.
+4. Apply a proposal and confirm that before/after snapshots are listed.
+5. Compare an older snapshot with the current draft and inspect the displayed paths and values.
+6. Restore a snapshot; confirm that the current draft changes, the index refreshes, validation/proposals clear, and the UI explicitly states that Voyage was not modified.
+7. Confirm that the remote-save button remains a separate action and still requires validation and confirmation.
