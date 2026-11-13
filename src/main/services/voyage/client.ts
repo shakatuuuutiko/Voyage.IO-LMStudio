@@ -75,7 +75,7 @@ export class VoyageCreatorClient {
 
   private async request<T>(
     path: string,
-    options: { method?: 'GET' | 'POST'; body?: unknown } = {}
+    options: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown; ifMatch?: string } = {}
   ): Promise<VoyageHttpResponse<T>> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
@@ -86,6 +86,7 @@ export class VoyageCreatorClient {
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           Accept: 'application/json',
+          ...(options.ifMatch ? { 'If-Match': options.ifMatch } : {}),
           ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {})
         },
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -177,6 +178,36 @@ export class VoyageCreatorClient {
     return {
       world: candidate as unknown as EditableWorld,
       etag: response.headers.get('ETag')
+    }
+  }
+
+  async replaceWorld(
+    shortId: string,
+    world: EditableWorld,
+    etag: string
+  ): Promise<{ saved: true; world: EditableWorld | null; etag: string | null; refreshError?: string }> {
+    if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
+    if (!etag.trim()) throw new Error('No hay ETag para proteger el guardado. Vuelve a descargar el mundo.')
+    if (world.shortId !== shortId) throw new Error('El documento no coincide con el mundo seleccionado.')
+    if (!isRecord(world.initialGameState)) throw new Error('El GameState no tiene un formato válido.')
+
+    const response = await this.request<unknown>(`/worlds/${encodeURIComponent(shortId.trim())}`, {
+      method: 'PUT',
+      ifMatch: etag,
+      body: { world }
+    })
+
+    // The OpenAPI contract does not guarantee an ETag on PUT, so read the saved draft again.
+    try {
+      const refreshed = await this.readWorld(shortId)
+      return { saved: true, world: refreshed.world, etag: refreshed.etag || response.headers.get('ETag') }
+    } catch (error) {
+      return {
+        saved: true,
+        world: null,
+        etag: response.headers.get('ETag'),
+        refreshError: error instanceof Error ? error.message : 'No se pudo verificar la lectura posterior al guardado.'
+      }
     }
   }
 
