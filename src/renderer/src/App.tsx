@@ -1031,7 +1031,7 @@ function App(): React.JSX.Element {
       let next = selectedWorldDraft
       for (const change of selectedChanges) next = change.remove ? removePath(next, change.path) : writePath(next, change.path, change.value)
       setSelectedWorldDraft(next)
-      await createDraftCheckpoint('proposal-applied', 'Propuesta aplicada al borrador', next)
+      await createDraftCheckpoint('proposal-applied', 'Propuesta aplicada al borrador', next).catch((error) => setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot posterior a la propuesta.'))
       const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: next })
       if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
       setProposalChanges(proposalChanges.filter((change) => !selectedProposalPaths.includes(JSON.stringify(change.path))))
