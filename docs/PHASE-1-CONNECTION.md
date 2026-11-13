@@ -69,9 +69,20 @@ Observed summary fields include `id`, `shortId`, `title`, `description`, `advanc
 
 The renderer now parses `data.worlds` and displays a read-only list with cover, title, description, visibility, publication status, and mod count. Selecting **Abrir / leer mundo** calls the already implemented `GET /worlds/{shortId}` path and displays the returned document and ETag. No write operation is triggered by selecting or reading a world.
 
-## Remaining live verification
+## Live single-world read confirmed
 
-The list endpoint has been tested against a live account. The single-world endpoint still needs a live test to confirm its exact response envelope, `initialGameState`, and ETag behavior before designing save/edit operations.
+A real read of **Cazadores de Cicatrices** (`shortId: DTeaerkFPOAF`) was completed through the application's **Abrir / leer mundo** inspector. The inspector export in `tempcopi.txt` records the successfully parsed world document and response ETag.
+
+Confirmed behavior:
+
+- The API response is accepted through the documented `data.world` envelope.
+- The returned world document is a complete object with `shortId`, metadata, and `initialGameState`.
+- The response supplied an ETag; the inspector displayed it as `W/"R9rHycl4AzaHWzlusdAzCEzw-ajqRKWHBYaMgsCoSzo"`.
+- The observed `initialGameState` contains 40 top-level keys, including shared definitions and authored content such as `gameModes`, `factions`, `skills`, `locations`, `npcs`, `mods`, `triggerDefinitions`, and `parties`.
+- In this world, `parties` is an object with one observed entry whose key is the empty string. That entry contains `quests`, `questTriggers`, `arcs`, and `narrativeEvents`. Preserve this key and its contents exactly; do not normalize it or assume it is invalid.
+- The JSON document parses successfully. The main-process client returns the parsed world object and ETag separately to the renderer.
+
+This confirms the read path and ETag capture for this tested world. It does **not** yet validate PUT/If-Match behavior, round-trip fidelity, validation endpoints, or any mutation workflow.
 
 No publication, unpublication, world replacement, revision restore, moderation, media upload, or other mutating Voyage operation is exposed by this phase.
 
