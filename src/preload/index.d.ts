@@ -77,6 +77,7 @@ interface AppAPI {
       model: string
       prompt: string
       maxTokens?: number
+      jsonMode?: boolean
     }) => Promise<LMStudioChatResult>
   }
   voyage: {
