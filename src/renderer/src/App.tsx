@@ -727,7 +727,7 @@ function App(): React.JSX.Element {
     attempt = 1,
     previousAttemptFailure = ''
   ): Promise<void> {
-    if (!selectedWorldDraft || !selectedModel || proposalBusy) return
+    if (!selectedWorldDraft || !selectedModel || (proposalBusy && attempt === 1)) return
     if (mode === 'repair' && !targetIssue && (!worldValidation || worldValidation.errors.length === 0)) return
     const userRequest = proposalRequestInput.current?.value.trim() || ''
     if (mode === 'request' && !userRequest) return
@@ -998,7 +998,7 @@ function App(): React.JSX.Element {
         if (issueResult.success) setTrackedIssues(issueResult.issues)
       }
     } finally {
-      setProposalBusy(false)
+      if (attempt === 1) setProposalBusy(false)
     }
   }
 
