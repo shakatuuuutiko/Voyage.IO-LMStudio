@@ -404,7 +404,9 @@ function App(): React.JSX.Element {
         'Eres un arquitecto experto en Voyage Creator Studio y en el GameState del mundo proporcionado.',
         'Recibes un resumen estructural de las secciones elegidas, no el documento completo. No propongas cambios sobre datos que no aparecen.',
         'Devuelve exclusivamente JSON válido, sin Markdown.',
-        'Formato exacto: {"changes":[{"path":["seccion","propiedad"],"value":"valor","reason":"justificación","category":"mejora|reparación|contenido|coherencia|balance|sistema"},{"path":["seccion","campoObsoleto"],"remove":true,"reason":"...","category":"reparación"}],"suggestions":[{"title":"título","detail":"explicación","priority":"alta|media|baja"}]}.',
+        'Formato exacto: {"changes":[{"path":"/seccion/propiedad","value":"valor","reason":"justificación","category":"mejora|reparación|contenido|coherencia|balance|sistema"}],"suggestions":[{"title":"título","detail":"explicación","priority":"alta|media|baja"}]}.',
+        'path es un JSON Pointer en texto, NO un array. Ejemplo: /factions/Helix Dominion/basicInfo. Escapa ~ como ~0 y / como ~1 dentro de cada nombre de clave. Mantén value, reason y category como propiedades hermanas de path.',
+        'No generes cambios de eliminación; si un campo debe retirarse, deja changes vacío y explícalo en suggestions.',
         'Los paths deben señalar ubicaciones reales visibles en el resumen. No uses __summary_omitted_keys ni inventes campos. Los arrays muestran solo sus primeros elementos; usa únicamente índices visibles.',
         'El padre de cada ruta debe existir en el GameState original. No inventes propiedades raíz, campos de configuración ni identificadores.',
         'Conserva tipos, estructuras, IDs y convenciones. No conviertas etiquetas descriptivas en IDs. No reemplaces arrays completos salvo necesidad demostrable.',
@@ -439,8 +441,8 @@ function App(): React.JSX.Element {
           'Actúa exclusivamente como reparador de JSON. La respuesta siguiente contiene una propuesta con sintaxis JSON defectuosa.',
           'Reconstruye el JSON conservando exactamente la intención y los datos que sí aparecen. No añadas cambios, campos, rutas ni recomendaciones nuevas.',
           'Devuelve únicamente un objeto JSON válido, sin Markdown ni explicaciones.',
-          'Estructura obligatoria: {"changes":[{"path":["claveRaiz","propiedad","campo"],"value":"valor JSON","reason":"texto","category":"mejora|reparación|contenido|coherencia|balance|sistema"},{"path":["claveRaiz","propiedad"],"remove":true,"reason":"texto","category":"reparación"}],"suggestions":[{"title":"texto","detail":"texto","priority":"alta|media|baja"}]}.',
-          'IMPORTANTE: path siempre es un array de strings cerrado antes de value, remove, reason o category. value es un valor JSON independiente. No conviertas nombres de campos en propiedades de path sin incluirlos dentro del array.',
+          'Estructura obligatoria: {"changes":[{"path":"/claveRaiz/propiedad/campo","value":"valor JSON","reason":"texto","category":"mejora|reparación|contenido|coherencia|balance|sistema"}],"suggestions":[{"title":"texto","detail":"texto","priority":"alta|media|baja"}]}.',
+          'IMPORTANTE: path siempre es un STRING JSON Pointer, por ejemplo "/resourceSettings/Combat Energy/maxValue". Nunca escribas objetos o propiedades dentro de path. value, reason y category son propiedades hermanas de path. No uses arrays para path.',
           'Si un cambio está demasiado dañado para reconstruirlo sin adivinar, omite ese cambio. Conserva las sugerencias que puedas recuperar.',
           'RESPUESTA ORIGINAL DEFECTUOSA:',
           proposalContent
@@ -468,27 +470,28 @@ function App(): React.JSX.Element {
         throw new Error('La respuesta no respeta el formato esperado (changes, máximo 30).')
       }
       const changes = parsed.changes.map((item, index): ProposalChange => {
-        if (!isRecord(item) || !Array.isArray(item.path) || item.path.length === 0 ||
-          !item.path.every((part) => typeof part === 'string' && part.length > 0) ||
-          item.path.some((part) => ['__proto__', 'prototype', 'constructor'].includes(part)) ||
-          typeof item.reason !== 'string' || (!Object.prototype.hasOwnProperty.call(item, 'value') && item.remove !== true)) {
-          throw new Error(`El cambio ${index + 1} tiene una ruta o estructura no permitida. La respuesta original se muestra abajo.`)
+        if (!isRecord(item) || typeof item.path !== 'string' || !item.path.startsWith('/') ||
+          typeof item.reason !== 'string' || !Object.prototype.hasOwnProperty.call(item, 'value')) {
+          throw new Error(`El cambio ${index + 1} tiene una ruta o estructura no permitida. Se esperaba path como JSON Pointer de texto y value como propiedad independiente.`)
         }
-        const path = item.path as string[]
+        const path = item.path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
+        if (path.length === 0 || path.some((part) => !part || ['__proto__', 'prototype', 'constructor'].includes(part))) {
+          throw new Error(`El cambio ${index + 1} contiene un JSON Pointer vacío o no permitido.`)
+        }
         const parent = readPath(selectedWorldDraft, path.slice(0, -1))
         if (!parent.exists || (!isRecord(parent.value) && !Array.isArray(parent.value))) {
           throw new Error(`La ruta del cambio ${index + 1} apunta a una sección inexistente o no editable: ${path.join('.')}`)
         }
         const current = readPath(selectedWorldDraft, path)
         const leaf = path[path.length - 1]
-        if (item.remove === true && !current.exists) {
+        if (false && !current.exists) {
           throw new Error(`El cambio ${index + 1} intenta eliminar una propiedad que no existe: ${path.join('.')}`)
         }
-        if (Array.isArray(parent.value) && (!/^\d+$/.test(leaf) || Number(leaf) > parent.value.length || (item.remove === true && Number(leaf) >= parent.value.length))) {
+        if (Array.isArray(parent.value) && (!/^\d+$/.test(leaf) || Number(leaf) > parent.value.length || (false && Number(leaf) >= parent.value.length))) {
           throw new Error(`El cambio ${index + 1} contiene un índice de array no permitido: ${path.join('.')}`)
         }
         return { path, value: item.value, previousValue: current.value, existed: current.exists,
-          reason: item.reason, category: typeof item.category === 'string' ? item.category : 'modificación', remove: item.remove === true }
+          reason: item.reason, category: typeof item.category === 'string' ? item.category : 'modificación', remove: false }
       })
       const pathKeys = changes.map((change) => JSON.stringify(change.path))
       if (new Set(pathKeys).size !== pathKeys.length) throw new Error('La propuesta repite rutas.')
