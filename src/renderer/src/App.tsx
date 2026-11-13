@@ -723,7 +723,9 @@ function App(): React.JSX.Element {
 
   async function generateWorldProposal(
     mode: 'request' | 'recommend' | 'repair' = 'request',
-    targetIssue?: (typeof trackedIssues)[number]
+    targetIssue?: (typeof trackedIssues)[number],
+    attempt = 1,
+    previousAttemptFailure = ''
   ): Promise<void> {
     if (!selectedWorldDraft || !selectedModel || proposalBusy) return
     if (mode === 'repair' && !targetIssue && (!worldValidation || worldValidation.errors.length === 0)) return
@@ -731,14 +733,14 @@ function App(): React.JSX.Element {
     if (mode === 'request' && !userRequest) return
     setProposalBusy(true)
     setProposalError('')
-    setProposalInfo('')
+    setProposalInfo(attempt > 1 ? 'Recomendación: intento ' + attempt + ' de 3. Motivo del reintento anterior: ' + previousAttemptFailure : '')
     setProposalRawResponse('')
     setProposalChanges([])
     setProposalSuggestions([])
     setProposalIssueId(targetIssue?.id || null)
     try {
       const task = mode === 'recommend'
-        ? 'Analiza el mundo y recomienda entre 5 y 8 mejoras concretas y prioritarias: reparaciones, coherencia, contenido, profundidad, sistemas, balance y oportunidades de expansión. No inventes funciones que el esquema no admita.'
+        ? 'Analiza el mundo y recomienda entre 5 y 8 mejoras concretas, específicas y aplicables: reparaciones, coherencia, contenido, profundidad, sistemas, balance y oportunidades de expansión. Evita consejos genéricos. Cada recomendación debe mencionar una sección o sistema real del mundo y explicar un beneficio claro. No inventes funciones que el esquema no admita.' + (attempt > 1 ? ' Este es el intento ' + attempt + ' de 3 porque el intento anterior no produjo recomendaciones utilizables. Diagnóstico anterior: ' + previousAttemptFailure + '. Reevalúa otras secciones, usa el contexto del índice y busca ideas concretas distintas; no repitas una respuesta vacía.' : '')
         : mode === 'repair'
           ? targetIssue
             ? 'Investiga y propone la corrección mínima para el problema registrado indicado. Usa su ruta exacta y el fragmento del borrador cuando estén disponibles. No modifiques datos no relacionados; si no hay evidencia suficiente, explica la limitación sin inventar campos.'
@@ -957,24 +959,40 @@ function App(): React.JSX.Element {
       ].filter(Boolean)
       setProposalInfo(ignoredMessages.length ? 'Control automático: ' + ignoredMessages.join('; ') + '.' : '')
       const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions : []
-      setProposalSuggestions(suggestions.filter((item): item is Record<string, unknown> =>
-        isRecord(item) && typeof item.title === 'string' && typeof item.detail === 'string'
+      const usableSuggestions = suggestions.filter((item): item is Record<string, unknown> =>
+        isRecord(item) && typeof item.title === 'string' && item.title.trim().length > 0 &&
+        typeof item.detail === 'string' && item.detail.trim().length > 0
       ).slice(0, 8).map((item) => ({
-        title: String(item.title), detail: String(item.detail),
+        title: String(item.title).trim(), detail: String(item.detail).trim(),
         priority: typeof item.priority === 'string' ? item.priority : 'media'
-      })))
-      if (effectiveChanges.length === 0 && (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0)) {
+      }))
+      if (mode === 'recommend' && effectiveChanges.length === 0 && usableSuggestions.length === 0) {
+        throw new Error('LM Studio no produjo ninguna recomendación utilizable: no hubo cambios seguros ni sugerencias con título y explicación.')
+      }
+      setProposalSuggestions(usableSuggestions)
+      if (effectiveChanges.length === 0 && usableSuggestions.length === 0) {
         setProposalError('El modelo no encontró cambios seguros ni recomendaciones.')
       } else if (effectiveChanges.length === 0) {
         setProposalError('La IA generó recomendaciones, pero no encontró cambios que pueda representar de forma segura en el esquema actual.')
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo generar la propuesta.'
-      setProposalError(message)
+      if (mode === 'recommend' && attempt < 3) {
+        setProposalInfo('No se obtuvo una recomendación utilizable en el intento ' + attempt + '/3. Reintentando automáticamente. Motivo: ' + message)
+        await generateWorldProposal('recommend', undefined, attempt + 1, message)
+        return
+      }
+      const exhausted = mode === 'recommend' && attempt >= 3
+      const finalMessage = exhausted
+        ? 'No fue posible generar recomendaciones utilizables tras 3 intentos. Último motivo: ' + message + '. Revisa la conexión y el modelo seleccionado en LM Studio; también puedes pedir una sección concreta mediante «Proponer cambios».'
+        : message
+      setProposalError(finalMessage)
       if (selectedWorldId) {
         await window.api.workspace.recordIssue({
           worldId: selectedWorldId, source: 'lm-studio', severity: 'warning',
-          code: 'LOCAL_AI_PROPOSAL_FAILURE', message, path: ''
+          code: exhausted ? 'LOCAL_AI_RECOMMENDATION_EXHAUSTED' : 'LOCAL_AI_PROPOSAL_FAILURE',
+          message: exhausted ? 'Recomendaciones agotadas tras 3 intentos. ' + finalMessage : message,
+          path: ''
         }).catch(() => undefined)
         const issueResult = await window.api.workspace.listIssues(selectedWorldId)
         if (issueResult.success) setTrackedIssues(issueResult.issues)
