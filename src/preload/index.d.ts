@@ -81,6 +81,7 @@ interface WorldIndexSummary {
   relationshipCount: number
 }
 interface WorldRelationshipResult {
+  matchedPath: string
   direction: 'outgoing' | 'incoming'
   node: { path: string; key: string; kind: string; preview: string; childCount: number }
   relationship: { sourcePath: string; targetPath: string; matchedValue: string; kind: 'exact-name-reference' }
@@ -121,7 +122,7 @@ interface AppAPI {
     buildIndex: (payload: { worldId: string; gameState: Record<string, unknown> }) => Promise<{ success: boolean; index?: WorldIndexSummary; error?: string }>
     readIndex: (worldId: string) => Promise<{ success: boolean; index?: WorldIndexSummary | null; error?: string }>
     searchIndex: (payload: { worldId: string; query: string; limit?: number }) => Promise<{ success: boolean; results: WorldIndexSearchResult[]; error?: string }>
-    relatedNodes: (payload: { worldId: string; path: string; limit?: number }) => Promise<{ success: boolean; results: WorldRelationshipResult[]; error?: string }>
+    relatedNodes: (payload: { worldId: string; paths: string[]; limit?: number }) => Promise<{ success: boolean; results: WorldRelationshipResult[]; error?: string }>
     listIssues: (worldId: string) => Promise<{ success: boolean; issues: TrackedIssue[]; error?: string }>
     recordIssue: (payload: { worldId: string; source: TrackedIssue['source']; severity: TrackedIssue['severity']; code: string; message: string; path?: string }) => Promise<{ success: boolean; issue?: TrackedIssue; error?: string }>
     updateIssue: (payload: { worldId: string; issueId: string; status: TrackedIssue['status']; detail?: string }) => Promise<{ success: boolean; issues?: TrackedIssue[]; error?: string }>
