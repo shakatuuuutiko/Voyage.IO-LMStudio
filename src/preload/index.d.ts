@@ -108,6 +108,17 @@ interface TrackedIssue {
   history: Array<{ at: string; action: string; detail: string }>
 }
 
+
+interface DraftSnapshotSummary {
+  id: string
+  worldId: string
+  createdAt: string
+  source: 'world-opened' | 'manual-checkpoint' | 'before-proposal' | 'proposal-applied' | 'draft-reset' | 'before-restore' | 'remote-saved'
+  label: string
+  bytes: number
+  sha256: string
+}
+
 interface AppAPI {
   lmStudio: {
     listModels: () => Promise<LMStudioModelResult>
@@ -125,6 +136,9 @@ interface AppAPI {
     relatedNodes: (payload: { worldId: string; paths: string[]; limit?: number }) => Promise<{ success: boolean; results: WorldRelationshipResult[]; error?: string }>
     listIssues: (worldId: string) => Promise<{ success: boolean; issues: TrackedIssue[]; error?: string }>
     recordIssue: (payload: { worldId: string; source: TrackedIssue['source']; severity: TrackedIssue['severity']; code: string; message: string; path?: string }) => Promise<{ success: boolean; issue?: TrackedIssue; error?: string }>
+    createDraftSnapshot: (payload: { worldId: string; gameState: Record<string, unknown>; source: DraftSnapshotSummary['source']; label?: string }) => Promise<{ success: boolean; snapshot?: DraftSnapshotSummary; error?: string }>
+    listDraftSnapshots: (worldId: string) => Promise<{ success: boolean; snapshots: DraftSnapshotSummary[]; error?: string }>
+    readDraftSnapshot: (payload: { worldId: string; snapshotId: string }) => Promise<{ success: boolean; snapshot?: { summary: DraftSnapshotSummary; gameState: Record<string, unknown> }; error?: string }>
     updateIssue: (payload: { worldId: string; issueId: string; status: TrackedIssue['status']; detail?: string }) => Promise<{ success: boolean; issues?: TrackedIssue[]; error?: string }>
   }
   voyage: {
