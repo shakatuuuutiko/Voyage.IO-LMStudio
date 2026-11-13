@@ -11,6 +11,7 @@ Branch: `feature/voyage-creator-api`
 - Player API key is validated for the documented `sk-voyage-v1-` prefix and non-empty token.
 - Electron's asynchronous `safeStorage` API encrypts the key before it is written under the app's user-data directory. This avoids the synchronous API deprecated for removal in Electron 46 and supports key rotation.
 - The renderer receives only status/result objects. The key is not returned from main-process IPC.
+- Voyage error text crossing IPC is redacted for strings matching the documented Player API key prefix, preventing accidental credential echo from reaching the renderer.
 - Existing LM Studio IPC channels and behavior are preserved.
 - BrowserWindow explicitly declares `contextIsolation: true` and `nodeIntegration: false`. `sandbox` remains false until preload compatibility is tested.
 - Builder `appId` now matches the runtime ID (`com.voyage.aicompanion`); the example.com update feed has been removed until a real update service exists.
