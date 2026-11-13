@@ -119,3 +119,8 @@ After a successful live draft validation, the renderer now supports a first safe
 - **Validar borrador (sin guardar)** validates the current draft, including locally applied proposals.
 
 This is intentionally a constrained first iteration: the model can replace or add direct properties inside one selected object section; it cannot issue arbitrary JSON paths or modify the world envelope, `shortId`, publication state, or other world metadata. Drafts are currently memory-only and are lost when the world is changed or the app is closed. There is still no Voyage PUT/save endpoint exposed, no persistent local snapshot store, and no automatic publication. A successful draft validation does not authorize a remote save.
+
+
+### Structured-output handling for local proposals
+
+The proposal request now asks LM Studio's OpenAI-compatible Chat Completions endpoint for JSON object mode (`response_format: { type: 'json_object' }`) with a lower temperature. The prompt uses a syntactically valid JSON example rather than a placeholder token. The renderer first parses the complete response, then can extract the first balanced JSON object if a model adds surrounding prose. It detects `finish_reason: length` before parsing and reports truncation explicitly. Any malformed or incomplete response is rejected; no draft changes are applied.
