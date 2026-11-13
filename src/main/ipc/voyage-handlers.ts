@@ -36,6 +36,7 @@ export function registerVoyageIpcHandlers(): void {
   ipcMain.removeHandler('voyage:clear-api-key')
   ipcMain.removeHandler('voyage:read-world')
   ipcMain.removeHandler('voyage:validate-draft')
+  ipcMain.removeHandler('voyage:save-world')
   ipcMain.removeHandler('voyage:list-worlds')
 
   ipcMain.handle('voyage:get-status', async () => {
@@ -121,6 +122,28 @@ export function registerVoyageIpcHandlers(): void {
         world: result.world,
         etag: result.etag
       }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:save-world', async (_event, payload: { shortId: string; etag: string; world: unknown }) => {
+    try {
+      if (!payload || typeof payload.shortId !== 'string' || typeof payload.etag !== 'string' ||
+        !payload.world || typeof payload.world !== 'object' || Array.isArray(payload.world)) {
+        throw new Error('Se requiere el mundo, su ETag y un documento válido.')
+      }
+      const world = payload.world as Record<string, unknown>
+      if (world.shortId !== payload.shortId || !world.initialGameState ||
+        typeof world.initialGameState !== 'object' || Array.isArray(world.initialGameState)) {
+        throw new Error('El documento debe conservar el shortId y un initialGameState válido.')
+      }
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const result = await new VoyageCreatorClient(apiKey).replaceWorld(
+        payload.shortId, world as never, payload.etag
+      )
+      return { success: true, ...result }
     } catch (error) {
       return { success: false, error: getErrorMessage(error) }
     }
