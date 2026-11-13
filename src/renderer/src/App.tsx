@@ -338,7 +338,7 @@ function App(): React.JSX.Element {
       const instruction = [
         'Eres un arquitecto experto en Voyage Creator Studio y en el GameState del mundo proporcionado.',
         'Devuelve exclusivamente JSON válido, sin Markdown.',
-        'Formato exacto: {"changes":[{"path":["seccion","propiedad","subpropiedad"],"value":"valor","reason":"justificación","category":"mejora|reparación|contenido|coherencia|balance|sistema"}],"suggestions":[{"title":"título","detail":"explicación","priority":"alta|media|baja"}]}.',
+        'Formato exacto: {"changes":[{"path":["seccion","propiedad"],"value":"valor","reason":"justificación","category":"mejora|reparación|contenido|coherencia|balance|sistema"},{"path":["seccion","campoObsoleto"],"remove":true,"reason":"...","category":"reparación"}],"suggestions":[{"title":"título","detail":"explicación","priority":"alta|media|baja"}]}. Usa value para reemplazar o añadir el valor hoja; usa remove:true para eliminar una propiedad incompatible u obsoleta.',
         'Cada path debe señalar una ubicación real. El padre de cada ruta debe existir en el GameState. Solo añade una propiedad hoja cuando el propio esquema o los datos existentes demuestren que está admitida. No inventes propiedades raíz, campos de configuración ni identificadores.',
         'Conserva tipos, estructuras, IDs y convenciones. No conviertas etiquetas descriptivas en IDs. Para arrays usa índices numéricos como segmentos. No reemplaces arrays completos salvo necesidad demostrable.',
         'No uses segmentos "__proto__", "prototype" ni "constructor". Máximo 30 cambios y 8 sugerencias. Evita duplicar cambios ya presentes. Si no hay cambios seguros, devuelve changes vacío y explica por qué en suggestions.',
