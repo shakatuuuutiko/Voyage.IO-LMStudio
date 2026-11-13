@@ -1,38 +1,35 @@
 # VoyAgent
 
-Aplicación de escritorio para gestionar mundos de Voyage Creator Studio con modelos locales mediante LM Studio.
+Aplicación de escritorio para trabajar con mundos de Voyage Creator Studio usando modelos locales servidos por LM Studio.
 
-> El nombre interno del paquete npm se mantiene como `voyage-io` para conservar compatibilidad con el perfil de desarrollo existente.
+## Funciones actuales
 
-An Electron application with React and TypeScript
+- Conexión local con LM Studio mediante la API compatible con OpenAI.
+- Conexión autenticada de solo lectura con Voyage Creator API.
+- Índice local del GameState, recuperación por rutas y seguimiento de incidencias.
+- Propuestas de cambios con revisión individual, controles de tipo y validación antes de aplicar.
+- Los cambios se mantienen en un borrador local; guardar en Voyage y publicar son operaciones separadas.
 
-## Recommended IDE Setup
+## Requisitos
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+- Node.js 22.12 o posterior.
+- LM Studio ejecutándose en `http://127.0.0.1:1234`.
+- Una Player API Key de Voyage Creator API para las funciones de lectura de mundos.
 
-## Project Setup
+## Desarrollo
 
-### Install
+El nombre interno del paquete npm permanece como `voyage-io` para conservar compatibilidad con el entorno de desarrollo y su almacenamiento local.
 
-```bash
-$ npm install
+```powershell
+npm install
+npm run typecheck
+npm run dev
 ```
 
-### Development
+## Compilación
 
-```bash
-$ npm run dev
+```powershell
+npm run build:win
 ```
 
-### Build
-
-```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
-```
+La aplicación empaquetada se presenta como **VoyAgent**. El identificador de aplicación se mantiene como `com.voyage.aicompanion` para conservar la identidad de instalación.
