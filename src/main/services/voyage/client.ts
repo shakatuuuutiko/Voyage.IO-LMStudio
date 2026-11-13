@@ -38,6 +38,20 @@ export interface VoyageConnectionResult {
   message: string
 }
 
+export interface VoyageValidationIssue {
+  code: string
+  message: string
+  path: string
+}
+
+export interface VoyageValidationResult {
+  stage: 'draft' | 'publish'
+  valid: boolean
+  errors: VoyageValidationIssue[]
+  warnings: VoyageValidationIssue[]
+  requestId: string
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -59,17 +73,22 @@ export class VoyageCreatorClient {
     private readonly baseUrl = VOYAGE_API_BASE_URL
   ) {}
 
-  private async request<T>(path: string): Promise<VoyageHttpResponse<T>> {
+  private async request<T>(
+    path: string,
+    options: { method?: 'GET' | 'POST'; body?: unknown } = {}
+  ): Promise<VoyageHttpResponse<T>> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
 
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
-        method: 'GET',
+        method: options.method || 'GET',
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
-          Accept: 'application/json'
+          Accept: 'application/json',
+          ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {})
         },
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
         signal: controller.signal
       })
 
@@ -160,4 +179,45 @@ export class VoyageCreatorClient {
       etag: response.headers.get('ETag')
     }
   }
+  async validateDraft(initialGameState: Record<string, unknown>): Promise<VoyageValidationResult> {
+    const response = await this.request<unknown>('/validate', {
+      method: 'POST',
+      body: {
+        stage: 'draft',
+        world: { initialGameState }
+      }
+    })
+
+    const envelope = isRecord(response.data) ? response.data : null
+    const data = envelope && isRecord(envelope.data) ? envelope.data : null
+    if (
+      !data ||
+      typeof data.valid !== 'boolean' ||
+      data.stage !== 'draft' ||
+      !Array.isArray(data.errors) ||
+      !Array.isArray(data.warnings) ||
+      typeof envelope?.requestId !== 'string'
+    ) {
+      throw new Error('Voyage devolvió una respuesta de validación con un formato inesperado.')
+    }
+
+    const parseIssues = (items: unknown[]): VoyageValidationIssue[] =>
+      items.flatMap((item) =>
+        isRecord(item) &&
+        typeof item.code === 'string' &&
+        typeof item.message === 'string' &&
+        typeof item.path === 'string'
+          ? [{ code: item.code, message: item.message, path: item.path }]
+          : []
+      )
+
+    return {
+      stage: 'draft',
+      valid: data.valid,
+      errors: parseIssues(data.errors),
+      warnings: parseIssues(data.warnings),
+      requestId: envelope.requestId
+    }
+  }
+
 }
