@@ -35,6 +35,7 @@ export function registerVoyageIpcHandlers(): void {
   ipcMain.removeHandler('voyage:test-connection')
   ipcMain.removeHandler('voyage:clear-api-key')
   ipcMain.removeHandler('voyage:read-world')
+  ipcMain.removeHandler('voyage:validate-draft')
   ipcMain.removeHandler('voyage:list-worlds')
 
   ipcMain.handle('voyage:get-status', async () => {
@@ -120,6 +121,28 @@ export function registerVoyageIpcHandlers(): void {
         world: result.world,
         etag: result.etag
       }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:validate-draft', async (_event, initialGameState: unknown) => {
+    try {
+      if (
+        typeof initialGameState !== 'object' ||
+        initialGameState === null ||
+        Array.isArray(initialGameState)
+      ) {
+        throw new Error('El estado del mundo no tiene un formato válido para validar.')
+      }
+
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+
+      const result = await new VoyageCreatorClient(apiKey).validateDraft(
+        initialGameState as Record<string, unknown>
+      )
+      return { success: true, validation: result }
     } catch (error) {
       return { success: false, error: getErrorMessage(error) }
     }
