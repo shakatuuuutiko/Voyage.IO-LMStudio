@@ -403,6 +403,7 @@ function App(): React.JSX.Element {
       setProposalChanges([])
       setSelectedProposalPaths([])
       setProposalSuggestions([])
+      setProposalIssueId(null)
       setProposalError('')
       setWorldValidation(null)
       setWorldValidationError('')
@@ -434,6 +435,7 @@ function App(): React.JSX.Element {
     setProposalChanges([])
     setSelectedProposalPaths([])
     setProposalSuggestions([])
+    setProposalIssueId(null)
     setProposalError('')
     setWorldValidation(null)
     setWorldValidationError('')
@@ -661,7 +663,7 @@ function App(): React.JSX.Element {
         status: targetIssue.status, occurrences: targetIssue.occurrences
       }) : ''
       const targetPathSegments = targetIssue?.path
-        ? targetIssue.path.replace(/^\\//, '').split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
+        ? (targetIssue.path.startsWith('/') ? targetIssue.path.slice(1) : targetIssue.path).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
         : []
       const targetPathValue = targetPathSegments.length ? readPath(selectedWorldDraft, targetPathSegments) : null
       const sectionKeys = Object.keys(selectedWorldDraft)
@@ -689,7 +691,7 @@ function App(): React.JSX.Element {
         contextNodes.unshift({
           path: targetIssue.path, key: targetPathSegments[targetPathSegments.length - 1],
           kind: Array.isArray(targetPathValue.value) ? 'array' : isRecord(targetPathValue.value) ? 'object' : typeof targetPathValue.value,
-          preview: summarizeForAI(targetPathValue.value, 0, { remaining: 2500 }),
+          preview: JSON.stringify(summarizeForAI(targetPathValue.value, 0, { remaining: 2500 })).slice(0, 1200),
           terms: targetIssue.code + ' ' + targetIssue.message, childCount: 0
         })
       }
@@ -1250,7 +1252,7 @@ function App(): React.JSX.Element {
                             <div className="world-browser-heading"><strong>{issue.code}</strong><span>{issue.severity.toUpperCase()} · {issue.status}</span></div>
                             <p>{issue.message}</p><code>{issue.path || 'Sin ruta'}</code>
                             <span className="helper">Detectado {issue.occurrences} vez/veces</span>
-                            {selectedWorldDraft && issue.status !== 'resolved' && issue.status !== 'false-positive' && <button className="secondary-button" onClick={() => void generateWorldProposal('repair', issue)} disabled={proposalBusy || !selectedModel || worldReadBusy}>Proponer reparación dirigida</button>}
+                            {selectedWorldDraft && issue.status !== 'resolved' && issue.status !== 'false-positive' && <button className="secondary-button" onClick={() => { void changeIssueStatus(issue.id, 'investigating'); void generateWorldProposal('repair', issue) }} disabled={proposalBusy || !selectedModel || worldReadBusy}>Proponer reparación dirigida</button>}
                             {issue.history.length > 0 && <details className="issue-history">
                               <summary>Historial · {issue.history.length} eventos</summary>
                               {issue.history.slice(-10).reverse().map((entry, index) => <div className="issue-history-entry" key={index}>
