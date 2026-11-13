@@ -478,7 +478,7 @@ function App(): React.JSX.Element {
       if (!isRecord(parsed) || !Array.isArray(parsed.changes) || parsed.changes.length > 30) {
         throw new Error('La respuesta no respeta el formato esperado (changes, máximo 30).')
       }
-      const changes = parsed.changes.map((item, index): ProposalChange => {
+      const changes = parsed.changes.map((item, index): ProposalChange | null => {
         if (!isRecord(item) || typeof item.path !== 'string' || !item.path.startsWith('/') ||
           typeof item.reason !== 'string' || !Object.prototype.hasOwnProperty.call(item, 'value')) {
           throw new Error(`El cambio ${index + 1} tiene una ruta o estructura no permitida. Se esperaba path como JSON Pointer de texto y value como propiedad independiente.`)
@@ -815,6 +815,7 @@ function App(): React.JSX.Element {
                               </button>
                             )}
                             {proposalError && <p className="helper" role="status">{proposalError}</p>}
+                            {proposalInfo && <p className="helper" role="status">{proposalInfo}</p>}
                             {proposalRawResponse && proposalError && (
                               <details className="proposal-raw-response">
                                 <summary>Ver respuesta original de LM Studio</summary>
