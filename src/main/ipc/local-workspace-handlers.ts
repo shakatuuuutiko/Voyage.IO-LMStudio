@@ -1,6 +1,9 @@
 import { ipcMain } from 'electron'
 import {
   buildWorldIndex,
+  createDraftSnapshot,
+  listDraftSnapshots,
+  readDraftSnapshot,
   getRelatedWorldNodes,
   listTrackedIssues,
   readWorldIndex,
@@ -13,7 +16,8 @@ import {
 export function registerLocalWorkspaceHandlers(): void {
   const channels = [
     'workspace:build-index', 'workspace:read-index', 'workspace:search-index', 'workspace:related-nodes',
-    'workspace:list-issues', 'workspace:record-issue', 'workspace:update-issue'
+    'workspace:list-issues', 'workspace:record-issue', 'workspace:update-issue',
+    'workspace:create-draft-snapshot', 'workspace:list-draft-snapshots', 'workspace:read-draft-snapshot'
   ]
   channels.forEach((channel) => ipcMain.removeHandler(channel))
 
@@ -73,6 +77,44 @@ export function registerLocalWorkspaceHandlers(): void {
       return { success: true, issue }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'No se pudo registrar el problema.' }
+    }
+  })
+
+
+  ipcMain.handle('workspace:create-draft-snapshot', async (_event, payload: {
+    worldId: string
+    gameState: Record<string, unknown>
+    source: 'world-opened' | 'manual-checkpoint' | 'before-proposal' | 'proposal-applied' | 'draft-reset' | 'before-restore' | 'remote-saved'
+    label?: string
+  }) => {
+    try {
+      if (!payload || typeof payload.worldId !== 'string' || !payload.gameState ||
+        typeof payload.gameState !== 'object' || Array.isArray(payload.gameState)) {
+        throw new Error('Se requiere un mundo y un GameState válido.')
+      }
+      const snapshot = await createDraftSnapshot(payload)
+      return { success: true, snapshot }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'No se pudo crear el snapshot.' }
+    }
+  })
+
+  ipcMain.handle('workspace:list-draft-snapshots', async (_event, worldId: string) => {
+    try {
+      return { success: true, snapshots: await listDraftSnapshots(worldId) }
+    } catch (error) {
+      return { success: false, snapshots: [], error: error instanceof Error ? error.message : 'No se pudo leer el historial.' }
+    }
+  })
+
+  ipcMain.handle('workspace:read-draft-snapshot', async (_event, payload: { worldId: string; snapshotId: string }) => {
+    try {
+      if (!payload || typeof payload.worldId !== 'string' || typeof payload.snapshotId !== 'string') {
+        throw new Error('Se requiere el mundo y el identificador del snapshot.')
+      }
+      return { success: true, snapshot: await readDraftSnapshot(payload.worldId, payload.snapshotId) }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'No se pudo leer el snapshot.' }
     }
   })
 
