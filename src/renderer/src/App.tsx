@@ -133,7 +133,7 @@ function collectArrayMetadata(
     if (Array.isArray(current.value)) {
       const visibleCount = current.depth < 2 ? 3 : 2
       result.push({
-        path: '/' + current.path.map((part) => part.replace(/~/g, '~0').replace(/\\//g, '~1')).join('/'),
+        path: '/' + current.path.map((part) => part.replace(/~/g, '~0').replace(/\//g, '~1')).join('/'),
         length: current.value.length,
         visibleIndices: Array.from({ length: Math.min(current.value.length, visibleCount) }, (_, index) => index)
       })
