@@ -689,6 +689,7 @@ function App(): React.JSX.Element {
       if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
     }
     setProposalChanges([])
+    setSelectedProposalPaths([])
     setProposalError('Borrador local restaurado desde la copia original descargada.')
     setWorldValidation(null)
     setWorldValidationError('')
