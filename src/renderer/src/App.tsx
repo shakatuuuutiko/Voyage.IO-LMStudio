@@ -610,7 +610,7 @@ function App(): React.JSX.Element {
         }
         const current = readPath(selectedWorldDraft, path)
         const leaf = path[path.length - 1]
-        if (Array.isArray(parent.value) && (!/^\\d+$/.test(leaf) || Number(leaf) > parent.value.length)) {
+        if (Array.isArray(parent.value) && (!/^\d+$/.test(leaf) || Number(leaf) > parent.value.length)) {
           return reject(`índice de array no permitido: ${path.join('.')}`)
         }
         if (current.exists && getProposalValueKind(current.value) !== getProposalValueKind(item.value)) {
