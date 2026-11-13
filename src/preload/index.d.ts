@@ -14,7 +14,20 @@ interface LMStudioChatResult {
   error?: string
 }
 
-interface VoyageAPI {
+interface VoyageOperationResult {
+  success: boolean
+  message?: string
+  error?: string
+}
+
+interface VoyageStatusResult {
+  success: boolean
+  configured: boolean
+  encryptionAvailable: boolean
+  error?: string
+}
+
+interface AppAPI {
   lmStudio: {
     listModels: () => Promise<LMStudioModelResult>
     chat: (payload: {
@@ -23,11 +36,17 @@ interface VoyageAPI {
       maxTokens?: number
     }) => Promise<LMStudioChatResult>
   }
+  voyage: {
+    getStatus: () => Promise<VoyageStatusResult>
+    saveApiKey: (apiKey: string) => Promise<VoyageOperationResult>
+    testConnection: () => Promise<VoyageOperationResult>
+    clearApiKey: () => Promise<VoyageOperationResult>
+  }
 }
 
 declare global {
   interface Window {
     electron: ElectronAPI
-    api: VoyageAPI
+    api: AppAPI
   }
 }
