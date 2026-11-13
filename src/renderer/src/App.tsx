@@ -374,6 +374,13 @@ function App(): React.JSX.Element {
           throw new Error(`La ruta del cambio ${index + 1} apunta a una sección inexistente o no editable: ${path.join('.')}`)
         }
         const current = readPath(selectedWorldDraft, path)
+        const leaf = path[path.length - 1]
+        if (item.remove === true && !current.exists) {
+          throw new Error(`El cambio ${index + 1} intenta eliminar una propiedad que no existe: ${path.join('.')}`)
+        }
+        if (Array.isArray(parent.value) && (!/^\\d+$/.test(leaf) || Number(leaf) > parent.value.length || (item.remove === true && Number(leaf) >= parent.value.length))) {
+          throw new Error(`El cambio ${index + 1} contiene un índice de array no permitido: ${path.join('.')}`)
+        }
         return { path, value: item.value, previousValue: current.value, existed: current.exists,
           reason: item.reason, category: typeof item.category === 'string' ? item.category : 'modificación', remove: item.remove === true }
       })
