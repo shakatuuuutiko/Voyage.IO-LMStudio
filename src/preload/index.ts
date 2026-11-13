@@ -13,6 +13,8 @@ const api = {
     testConnection: () => ipcRenderer.invoke('voyage:test-connection'),
     listWorlds: () => ipcRenderer.invoke('voyage:list-worlds'),
     readWorld: (shortId: string) => ipcRenderer.invoke('voyage:read-world', shortId),
+    validateDraft: (initialGameState: Record<string, unknown>) =>
+      ipcRenderer.invoke('voyage:validate-draft', initialGameState),
     clearApiKey: () => ipcRenderer.invoke('voyage:clear-api-key')
   }
 }
