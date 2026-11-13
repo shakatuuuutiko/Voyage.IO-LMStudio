@@ -129,7 +129,7 @@ function collectArrayMetadata(
 
   while (stack.length > 0 && result.length < maxEntries) {
     const current = stack.pop()!
-    if (current.depth >= 4 || current.value === null || typeof current.value !== 'object') continue
+    if (current.value === null || typeof current.value !== 'object') continue
     if (Array.isArray(current.value)) {
       const visibleCount = current.depth < 2 ? 3 : 2
       result.push({
@@ -137,10 +137,12 @@ function collectArrayMetadata(
         length: current.value.length,
         visibleIndices: Array.from({ length: Math.min(current.value.length, visibleCount) }, (_, index) => index)
       })
-      for (let index = Math.min(current.value.length, visibleCount) - 1; index >= 0; index -= 1) {
-        stack.push({ value: current.value[index], path: [...current.path, String(index)], depth: current.depth + 1 })
+      if (current.depth < 4) {
+        for (let index = Math.min(current.value.length, visibleCount) - 1; index >= 0; index -= 1) {
+          stack.push({ value: current.value[index], path: [...current.path, String(index)], depth: current.depth + 1 })
+        }
       }
-    } else if (isRecord(current.value)) {
+    } else if (current.depth < 4 && isRecord(current.value)) {
       const entries = Object.entries(current.value).slice(0, current.depth === 0 ? 100 : current.depth === 1 ? 30 : 18)
       for (let index = entries.length - 1; index >= 0; index -= 1) {
         const [key, value] = entries[index]
