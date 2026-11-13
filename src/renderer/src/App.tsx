@@ -125,7 +125,7 @@ function App(): React.JSX.Element {
   const [response, setResponse] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const [maxTokens, setMaxTokens] = useState(4096)
+  const [maxTokens, setMaxTokens] = useState('4096')
   const [voyageConfigured, setVoyageConfigured] = useState(false)
   const [voyageEncryptionAvailable, setVoyageEncryptionAvailable] = useState(false)
   const [voyageBusy, setVoyageBusy] = useState(false)
@@ -140,7 +140,6 @@ function App(): React.JSX.Element {
   const [selectedWorldJson, setSelectedWorldJson] = useState('')
   const [selectedWorldInitialGameState, setSelectedWorldInitialGameState] = useState<Record<string, unknown> | null>(null)
   const [selectedWorldDraft, setSelectedWorldDraft] = useState<Record<string, unknown> | null>(null)
-  const [proposalRequest, setProposalRequest] = useState('')
   const [proposalBusy, setProposalBusy] = useState(false)
   const [proposalError, setProposalError] = useState('')
   const [proposalRawResponse, setProposalRawResponse] = useState('')
@@ -151,6 +150,7 @@ function App(): React.JSX.Element {
   const [worldValidation, setWorldValidation] = useState<{ valid: boolean; errors: Array<{ code: string; message: string; path: string }>; warnings: Array<{ code: string; message: string; path: string }>; requestId: string } | null>(null)
   const [worldValidationError, setWorldValidationError] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
+  const proposalRequestInput = useRef<HTMLTextAreaElement>(null)
 
   async function loadModels(): Promise<void> {
     setConnection('loading')
@@ -321,7 +321,8 @@ function App(): React.JSX.Element {
 
   async function generateWorldProposal(mode: 'request' | 'recommend' | 'repair' = 'request'): Promise<void> {
     if (!selectedWorldDraft || !selectedModel || proposalBusy) return
-    if (mode === 'request' && !proposalRequest.trim()) return
+    const userRequest = proposalRequestInput.current?.value.trim() || ''
+    if (mode === 'request' && !userRequest) return
     setProposalBusy(true)
     setProposalError('')
     setProposalRawResponse('')
@@ -346,13 +347,13 @@ function App(): React.JSX.Element {
         'Prioriza propuestas pequeñas, coherentes y verificables. No afirmes que una propiedad es válida si no puedes deducirlo del GameState.',
         '',
         'TAREA:', task,
-        mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + proposalRequest.trim() : '',
+        mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
         '',
         'GAMESTATE COMPLETO ACTUAL (JSON compacto):',
         JSON.stringify(selectedWorldDraft)
       ].filter(Boolean).join('\n')
-      const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens, jsonMode: true })
+      const result = await window.api.lmStudio.chat({ model: selectedModel, prompt: instruction, maxTokens: Number(maxTokens) || 4096, jsonMode: true })
       if (!result.success || !result.content) throw new Error(result.error || 'El modelo no devolvió una propuesta.')
       setProposalRawResponse(result.content)
       if (result.finishReason === 'length') throw new Error('LM Studio truncó la respuesta. Aumenta el presupuesto de tokens e inténtalo de nuevo.')
@@ -537,17 +538,16 @@ function App(): React.JSX.Element {
             <label htmlFor="tokens">Presupuesto máximo de tokens</label>
             <select
               id="tokens"
+              type="number"
+              min={256}
+              max={65536}
+              step={256}
               value={maxTokens}
-              onChange={(event) => setMaxTokens(Number(event.target.value))}
+              onChange={(event) => setMaxTokens(event.target.value)}
               disabled={busy}
-            >
-              <option value={2048}>2.048</option>
-              <option value={4096}>4.096</option>
-              <option value={6144}>6.144</option>
-              <option value={8192}>8.192</option>
-            </select>
+            />
             <p className="helper">
-              Un límite mayor puede ayudar a modelos que utilizan razonamiento interno.
+              Tokens máximos de salida (256–65.536). También se usan al generar propuestas. La ventana de contexto de entrada se configura por separado en LM Studio.
             </p>
           </div>
 
@@ -664,11 +664,10 @@ function App(): React.JSX.Element {
                             </div>
                             <p className="helper">Describe libremente el resultado que buscas. La IA analizará el GameState completo, decidirá qué secciones deben intervenir y propondrá cambios coordinados. También puedes pedir recomendaciones sin escribir una instrucción.</p>
                             <label htmlFor="proposal-request">¿Qué quieres conseguir?</label>
-                            <textarea id="proposal-request" rows={4} value={proposalRequest}
-                              onChange={(event) => setProposalRequest(event.target.value)}
+                            <textarea id="proposal-request" ref={proposalRequestInput} rows={4}
                               placeholder="Ej.: Quiero facciones más dinámicas, con territorios, jerarquías, relaciones y evolución..."
                               disabled={proposalBusy} />
-                            <button className="secondary-button" onClick={() => void generateWorldProposal('request')} disabled={proposalBusy || !selectedModel || !proposalRequest.trim()}>
+                            <button className="secondary-button" onClick={() => void generateWorldProposal('request')} disabled={proposalBusy || !selectedModel}>
                               {proposalBusy ? 'Analizando el mundo con LM Studio...' : 'Proponer cambios'}
                             </button>
                             <button className="secondary-button recommend-button" onClick={() => void generateWorldProposal('recommend')} disabled={proposalBusy || !selectedModel}>
