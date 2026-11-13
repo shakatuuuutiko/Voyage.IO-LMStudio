@@ -412,7 +412,16 @@ function App(): React.JSX.Element {
         if (refreshed.success) setTrackedIssues(refreshed.issues)
       }
     } catch (error) {
-      setWorldValidationError(error instanceof Error ? error.message : 'Error al validar el borrador.')
+      const message = error instanceof Error ? error.message : 'Error al validar el borrador.'
+      setWorldValidationError(message)
+      if (selectedWorldId) {
+        await window.api.workspace.recordIssue({
+          worldId: selectedWorldId, source: 'application', severity: 'error',
+          code: 'VOYAGE_VALIDATION_REQUEST_FAILURE', message, path: ''
+        })
+        const issueResult = await window.api.workspace.listIssues(selectedWorldId)
+        if (issueResult.success) setTrackedIssues(issueResult.issues)
+      }
     } finally {
       setWorldValidationBusy(false)
     }
