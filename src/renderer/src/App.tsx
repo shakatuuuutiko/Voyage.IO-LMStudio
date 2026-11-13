@@ -486,6 +486,12 @@ function App(): React.JSX.Element {
       const retrievalTerms = [...new Set((retrievalText.toLocaleLowerCase().match(/[\\p{L}\\p{N}_-]{4,}/gu) || []).slice(0, 10))].join(' ')
       const indexLookup = await window.api.workspace.searchIndex({ worldId: selectedWorldId, query: retrievalTerms, limit: 80 })
       const indexMatches = indexLookup.success ? indexLookup.results.slice(0, 35) : []
+      const retrievalBudget = { remaining: 18000 }
+      const retrievedFragments = indexMatches.slice(0, 20).map((item) => {
+        const path = item.path ? item.path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~')) : []
+        const found = readPath(selectedWorldDraft, path)
+        return { path: item.path, value: found.exists ? summarizeForAI(found.value, 0, retrievalBudget) : item.preview }
+      })
       const indexedRootKeys = [...new Set(indexMatches.map((item) => item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~')).filter((key): key is string => Boolean(key) && sectionKeys.includes(key)))]
       const selectionPrompt = [
         'Eres un analista de mundos de Voyage Creator Studio.',
@@ -528,7 +534,7 @@ function App(): React.JSX.Element {
         mode === 'request' ? 'PETICIÓN DEL USUARIO: ' + userRequest : '',
         mode === 'repair' ? 'RESULTADO DE VALIDACIÓN: ' + validationContext : '',
         'SECCIONES SELECCIONADAS: ' + selectedKeys.join(', '),
-        'FRAGMENTOS RECUPERADOS DEL ÍNDICE LOCAL: ' + JSON.stringify(indexMatches.filter((item) => selectedKeys.includes(item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~') || '')).slice(0, 25)),
+        'FRAGMENTOS RECUPERADOS DEL ÍNDICE LOCAL (datos leídos desde las rutas exactas del borrador actual): ' + JSON.stringify(retrievedFragments.filter((item) => selectedKeys.includes(item.path.split('/')[1]?.replace(/~1/g, '/').replace(/~0/g, '~') || '')).slice(0, 20)),
         'RESUMEN DE LAS SECCIONES (las rutas corresponden a las claves originales):',
         JSON.stringify(focusedWorld)
       ].filter(Boolean).join('\n')
