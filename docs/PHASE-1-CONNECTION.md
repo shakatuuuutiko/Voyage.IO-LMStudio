@@ -46,7 +46,7 @@ npm run build
 npm run dev
 ```
 
-Use Node.js 20.19+ or 22.12+ (the current `electron-vite` engine requirement). Then verify:
+Use Node.js 22.12 or newer. The lockfile resolves Electron 44.11.3, whose declared engine requirement is `>=22.12.0`; the lower Node 20.19 minimum accepted by Vite/electron-vite is not sufficient for this Electron version. Then verify:
 
 - The app opens without a preload/IPC error.
 - LM Studio still lists models and returns a chat response.
