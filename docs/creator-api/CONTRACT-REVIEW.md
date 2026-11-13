@@ -91,7 +91,7 @@ Music is separate: MP3/WAV/OGG/M4A, up to 25 MiB per guide, signed direct upload
 Implemented in this branch:
 
 - Main-process Voyage HTTP client for authenticated connection checks and read-only single-world download by `shortId`.
-- Encrypted key storage through Electron `safeStorage`, rejecting the insecure `basic_text` backend.
+- Encrypted key storage through Electron's asynchronous `safeStorage` API, including key-rotation handling.
 - IPC methods to inspect key status, save, test and clear a key. The key is never returned to the renderer.
 - Typed preload bridge extension, including read-only world retrieval. Existing LM Studio IPC methods remain unchanged.
 - Initial renderer controls for key entry, save, test and clear. The input is uncontrolled and cleared after a successful save.
