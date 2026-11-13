@@ -764,7 +764,7 @@ html, body, #root, .app-shell, .workspace {
   top: 98px;
   right: 18px;
   bottom: 43px;
-  left: clamp(265px, 23vw, 310px);
+  left: 264px;
   overflow: auto;
   padding: 18px;
   border: 1px solid #3b4052;
