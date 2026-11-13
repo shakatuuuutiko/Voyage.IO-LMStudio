@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { mkdir, readFile, rename, writeFile } from 'fs/promises'
+import { mkdir, readFile, rename, unlink, writeFile } from 'fs/promises'
 import { createHash, randomUUID } from 'crypto'
 import { join } from 'path'
 
@@ -430,7 +430,7 @@ export async function createDraftSnapshot(input: {
     const removed = manifest.snapshots.pop()
     if (!removed) break
     totalBytes -= removed.bytes
-    try { await import('fs/promises').then(({ unlink }) => unlink(join(snapshotDirectory, removed.id + '.json'))) }
+    try { await unlink(join(snapshotDirectory, removed.id + '.json')) }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
   }
   await atomicWrite(join(directory, 'draft-history.json'), manifest)
