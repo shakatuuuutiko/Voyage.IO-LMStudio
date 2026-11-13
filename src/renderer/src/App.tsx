@@ -69,7 +69,7 @@ interface ProposalChange {
 function readPath(root: unknown, path: string[]): { value: unknown; exists: boolean } {
   let current: unknown = root
   for (const segment of path) {
-    if (Array.isArray(current) && /^\\d+$/.test(segment)) {
+    if (Array.isArray(current) && /^\d+$/.test(segment)) {
       const index = Number(segment)
       if (index >= current.length) return { value: undefined, exists: false }
       current = current[index]
@@ -84,12 +84,12 @@ function writePath(root: Record<string, unknown>, path: string[], value: unknown
   const next = JSON.parse(JSON.stringify(root)) as Record<string, unknown>
   let current: unknown = next
   for (const segment of path.slice(0, -1)) {
-    if (Array.isArray(current) && /^\\d+$/.test(segment)) current = current[Number(segment)]
+    if (Array.isArray(current) && /^\d+$/.test(segment)) current = current[Number(segment)]
     else if (isRecord(current)) current = current[segment]
     else throw new Error('La ruta de la propuesta dejó de existir en el borrador.')
   }
   const leaf = path[path.length - 1]
-  if (Array.isArray(current) && /^\\d+$/.test(leaf)) current[Number(leaf)] = value
+  if (Array.isArray(current) && /^\d+$/.test(leaf)) current[Number(leaf)] = value
   else if (isRecord(current)) current[leaf] = value
   else throw new Error('La ubicación de destino no es un objeto o array editable.')
   return next
