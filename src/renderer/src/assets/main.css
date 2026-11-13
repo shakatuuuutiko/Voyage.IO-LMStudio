@@ -556,3 +556,71 @@ button:disabled, select:disabled, textarea:disabled {
 .validation-warning {
   border-left: 3px solid #c49a45;
 }
+
+
+.proposal-editor {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #3b4052;
+  border-radius: 7px;
+  background: #141821;
+}
+
+.proposal-editor label {
+  color: #aeb5c4;
+  font-size: 11px;
+}
+
+.proposal-editor select,
+.proposal-editor textarea {
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #363c4b;
+  border-radius: 6px;
+  outline: none;
+  color: #e8eaf0;
+  background: #11141b;
+  font: inherit;
+  font-size: 11px;
+}
+
+.proposal-editor textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.proposal-review {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid #343a49;
+  color: #d8dce7;
+  font-size: 11px;
+}
+
+.proposal-change {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #343a49;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.proposal-change p {
+  margin: 5px 0;
+  color: #929bad;
+}
+
+.proposal-change pre {
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 5px;
+  background: #0e1118;
+  color: #cbd3e2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
