@@ -37,7 +37,7 @@ Implementation policy:
 - Do not log, return, expose, or include the key in prompts.
 - A key's prefix is a format check, not proof of validity or permissions. The authenticated API request is the actual verification.
 
-The guide does not enumerate the exact scope string or provide a fully specified key-creation screen path. UI copy should therefore avoid claiming a particular scope label until verified.
+The official Latitude announcement in r/Voyage confirms the key-creation path: open a world in Creator Studio → Settings → API keys → enter a label → Generate → copy the key immediately (it is shown only once) → open API docs. The guide still does not enumerate the literal scope string, so the app must not claim a particular scope label. [Official Latitude announcement](https://www.reddit.com/r/Voyage/comments/1wcylka/voyage_creator_api/).
 
 ## 3. World data and concurrency
 
