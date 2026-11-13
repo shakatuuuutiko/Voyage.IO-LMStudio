@@ -14,6 +14,29 @@ interface LMStudioChatResult {
   error?: string
 }
 
+interface VoyageWorld {
+  shortId: string
+  title: string
+  description?: string
+  advancedDescription?: string | null
+  discordThreadUrl?: string | null
+  image?: string | null
+  isLocked?: boolean
+  isMod?: boolean
+  isUnremixable?: boolean
+  tags?: string[]
+  visibility?: 'private' | 'unlisted'
+  initialGameState: Record<string, unknown>
+  [key: string]: unknown
+}
+
+interface VoyageWorldReadResult {
+  success: boolean
+  world?: VoyageWorld
+  etag?: string | null
+  error?: string
+}
+
 interface VoyageOperationResult {
   success: boolean
   message?: string
@@ -40,6 +63,7 @@ interface AppAPI {
     getStatus: () => Promise<VoyageStatusResult>
     saveApiKey: (apiKey: string) => Promise<VoyageOperationResult>
     testConnection: () => Promise<VoyageOperationResult>
+    readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
     clearApiKey: () => Promise<VoyageOperationResult>
   }
 }
