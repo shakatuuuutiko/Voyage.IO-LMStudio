@@ -16,7 +16,7 @@ Branch: `feature/voyage-creator-api`
 - BrowserWindow explicitly declares `contextIsolation: true` and `nodeIntegration: false`. `sandbox` remains false until preload compatibility is tested.
 - Builder `appId` now matches the runtime ID (`com.voyage.aicompanion`); the example.com update feed has been removed until a real update service exists.
 - Package metadata no longer contains the template author/homepage values.
-- Removed an undeclared `install-electron` command from `postinstall`; Electron's declared package handles its binary install, and the project now runs the declared `electron-builder install-app-deps` hook.
+- Updated `postinstall` to run the Electron 42+ `install-electron --no` binary bootstrap explicitly, followed by `electron-builder install-app-deps`. Electron 42+ no longer downloads its binary in the package postinstall hook; the `install-electron` executable is declared in the locked Electron package.
 
 ## Configure the key
 
