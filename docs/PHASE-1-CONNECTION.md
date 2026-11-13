@@ -9,8 +9,7 @@ Branch: `feature/voyage-creator-api`
 - Connection check uses `GET /worlds?page=0&type=world`. It does not assume undocumented response properties.
 - A read-only `GET /worlds/{shortId}` path is implemented in the main-process client and IPC bridge. It validates the documented `data.world` envelope and preserves the complete `initialGameState` and unknown world fields; it captures the `ETag` for a later conditional save.
 - Player API key is validated for the documented `sk-voyage-v1-` prefix and non-empty token.
-- Electron `safeStorage` encrypts the key before it is written under the app's user-data directory. Save and read operations both reject the `basic_text` backend.
-- The storage layer rejects unavailable encryption and Electron's `basic_text` backend.
+- Electron's asynchronous `safeStorage` API encrypts the key before it is written under the app's user-data directory. This avoids the synchronous API deprecated for removal in Electron 46 and supports key rotation.
 - The renderer receives only status/result objects. The key is not returned from main-process IPC.
 - Existing LM Studio IPC channels and behavior are preserved.
 - BrowserWindow explicitly declares `contextIsolation: true` and `nodeIntegration: false`. `sandbox` remains false until preload compatibility is tested.
