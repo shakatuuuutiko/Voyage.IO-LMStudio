@@ -58,3 +58,25 @@ No local typecheck, build, Electron runtime, or live Voyage test has been execut
 4. Add before/after structured diffs and change-risk labels.
 5. Link tracked issues to proposed changes and post-repair validation evidence.
 6. Implement remote save separately using ETag/If-Match and explicit confirmation; keep publication independent.
+
+
+## Proposal review increment — structured diffs and risk heuristics
+
+The proposal review panel now supplements the full before/after JSON values with a compact recursive diff:
+
+- Compares object properties and array positions recursively, up to four nesting levels.
+- Displays at most 12 changed leaves per proposal to keep the review panel bounded.
+- Shows removed/added properties and array-length changes explicitly.
+- Truncates long scalar previews; the full values remain available in the existing before/after blocks.
+
+Each proposal also receives a heuristic risk label:
+
+- **High:** paths containing sensitive gameplay/configuration terms, or changes replacing object/array structures.
+- **Medium:** numeric scalar changes.
+- **Low:** other scalar text/boolean changes.
+
+These labels are review hints, not a schema validator, semantic classifier, or guarantee of safety. A low-risk label never bypasses the existing type, path, stale-value, overlap, selection, and Voyage validation checks. A proposal is never applied automatically, and all changes remain local to the in-memory draft.
+
+### Verification status
+
+The GitHub branch contains the implementation and styles. The assistant has not run the Windows TypeScript check, package build, or Electron runtime. Run npm run typecheck after pulling the latest branch before proceeding to the next implementation increment.
