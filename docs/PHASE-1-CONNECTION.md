@@ -119,9 +119,16 @@ The initial single-section proposal editor has been replaced by a free-form, wor
 - Applying accepted changes mutates only the renderer's in-memory draft. It does not call Voyage. The user can discard a proposal or restore the draft from the downloaded original.
 - The workflow remains local-AI-only and preserves the manual review boundary. No PUT/save, automatic publication, or remote mutation is introduced.
 
-### Important context-size limitation
+### Large-world analysis and context management
 
-The global workflow sends the compact current GameState to the selected local model. A large world may exceed that model's context window even when the JSON is syntactically valid. In that case, LM Studio may truncate or fail to process the request; increase the model's context length or use a model with a larger context window. The application must not silently claim that an incomplete analysis covered the whole world.
+The proposal workflow no longer sends the complete GameState to LM Studio. It now performs two bounded stages:
+
+1. Build a structural summary of the root sections, limiting depth, sampled array entries, long strings, and total summary size. The model chooses up to five exact root section keys relevant to the task.
+2. Build a second bounded, path-preserving summary of those selected sections and ask for concrete changes and recommendations. Array samples retain their original indices; omitted object keys and abbreviated values are explicitly marked and must not be treated as editable paths.
+
+The summary budgets are capped in the renderer to avoid requests comparable to the previous 467,406-token prompt. This is a focused analysis, not a claim that every record in the world was inspected. The model must not propose edits based on omitted content. Any proposed path is still checked against the full in-memory GameState before it can be reviewed or applied. Voyage validation remains the authoritative schema check.
+
+The full GameState JSON inspector is now deferred until the user explicitly requests it, instead of rendering the entire document immediately after download. The HUD applies bounded scroll containers and min-width constraints so long or wide JSON/model output cannot expand the application layout.
 
 ### Verification status
 
