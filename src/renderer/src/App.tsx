@@ -98,6 +98,7 @@ function App(): React.JSX.Element {
   const [proposalRequest, setProposalRequest] = useState('')
   const [proposalBusy, setProposalBusy] = useState(false)
   const [proposalError, setProposalError] = useState('')
+  const [proposalRawResponse, setProposalRawResponse] = useState('')
   const [proposalChanges, setProposalChanges] = useState<ProposalChange[]>([])
   const [worldReadBusy, setWorldReadBusy] = useState(false)
   const [worldValidationBusy, setWorldValidationBusy] = useState(false)
@@ -282,6 +283,7 @@ function App(): React.JSX.Element {
 
     setProposalBusy(true)
     setProposalError('')
+    setProposalRawResponse('')
     setProposalChanges([])
     try {
       const instruction = [
@@ -310,6 +312,7 @@ function App(): React.JSX.Element {
       if (!result.success || !result.content) {
         throw new Error(result.error || 'El modelo no devolvió una propuesta.')
       }
+      setProposalRawResponse(result.content)
       if (result.finishReason === 'length') {
         throw new Error('LM Studio truncó la respuesta al alcanzar el límite de tokens. Aumenta el presupuesto de tokens e inténtalo de nuevo.')
       }
@@ -339,7 +342,8 @@ function App(): React.JSX.Element {
           typeof item.reason !== 'string' ||
           !Object.prototype.hasOwnProperty.call(item, 'value')
         ) {
-          throw new Error(`El cambio ${index + 1} tiene una estructura no permitida.`)
+          const shape = isRecord(item) ? Object.keys(item).join(', ') || 'objeto vacío' : typeof item
+          throw new Error(`El cambio ${index + 1} tiene una estructura no permitida. Campos recibidos: ${shape}. La respuesta original se muestra abajo.`)
         }
         return {
           key: item.key,
@@ -647,6 +651,12 @@ function App(): React.JSX.Element {
                               {proposalBusy ? 'Generando propuesta con LM Studio...' : 'Generar propuesta'}
                             </button>
                             {proposalError && <p className="helper" role="status">{proposalError}</p>}
+                            {proposalRawResponse && proposalError && (
+                              <details className="proposal-raw-response">
+                                <summary>Ver respuesta original de LM Studio</summary>
+                                <pre>{proposalRawResponse}</pre>
+                              </details>
+                            )}
                             {proposalChanges.length > 0 && (
                               <div className="proposal-review">
                                 <strong>Revisión de propuesta · {proposalChanges.length} cambios</strong>
