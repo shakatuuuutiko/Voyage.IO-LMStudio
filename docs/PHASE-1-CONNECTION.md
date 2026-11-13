@@ -16,6 +16,7 @@ Branch: `feature/voyage-creator-api`
 - BrowserWindow explicitly declares `contextIsolation: true` and `nodeIntegration: false`. `sandbox` remains false until preload compatibility is tested.
 - Builder `appId` now matches the runtime ID (`com.voyage.aicompanion`); the example.com update feed has been removed until a real update service exists.
 - Package metadata no longer contains the template author/homepage values.
+- Removed an undeclared `install-electron` command from `postinstall`; Electron's declared package handles its binary install, and the project now runs the declared `electron-builder install-app-deps` hook.
 
 ## Configure the key
 
@@ -35,6 +36,7 @@ Never paste the key into a chat, issue, log, source file, or screenshot.
 From the repository directory in PowerShell:
 
 ```powershell
+node --version
 git fetch origin
 git switch feature/voyage-creator-api
 git pull
@@ -44,7 +46,7 @@ npm run build
 npm run dev
 ```
 
-Then verify:
+Use Node.js 20.19+ or 22.12+ (the current `electron-vite` engine requirement). Then verify:
 
 - The app opens without a preload/IPC error.
 - LM Studio still lists models and returns a chat response.
