@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerVoyageIpcHandlers } from './ipc/voyage-handlers'
 import { registerLocalWorkspaceHandlers } from './ipc/local-workspace-handlers'
+import { migrateUserDataDirectory } from './services/app-data-migration'
 
 const LM_STUDIO_URL = 'http://127.0.0.1:1234'
 
@@ -179,7 +180,8 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await migrateUserDataDirectory()
   registerVoyageIpcHandlers()
   registerLocalWorkspaceHandlers()
   electronApp.setAppUserModelId('com.voyage.aicompanion')
