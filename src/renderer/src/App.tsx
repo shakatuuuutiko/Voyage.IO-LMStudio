@@ -538,9 +538,10 @@ function App(): React.JSX.Element {
     if (!confirmed) return
     setSnapshotBusy(true)
     try {
-      if (selectedWorldDraft) await createDraftCheckpoint('before-restore', 'Copia automática antes de restaurar')
+      // Read and verify the target before creating a checkpoint, because retention may prune the oldest entry.
       const result = await window.api.workspace.readDraftSnapshot({ worldId: selectedWorldId, snapshotId })
       if (!result.success || !result.snapshot) throw new Error(result.error || 'No se pudo restaurar el snapshot.')
+      if (selectedWorldDraft) await createDraftCheckpoint('before-restore', 'Copia automática antes de restaurar')
       const restored = JSON.parse(JSON.stringify(result.snapshot.gameState)) as Record<string, unknown>
       setSelectedWorldDraft(restored)
       const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: restored })
