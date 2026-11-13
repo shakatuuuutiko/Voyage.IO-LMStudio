@@ -6,8 +6,8 @@ Base: `main` at `23690294e1c0d9ead35a4080604fc3b258f55a45`
 
 ## Scope and safety
 
-- This branch was created from `main`; no existing source files were changed during the initial audit.
-- Keep all implementation work on this feature branch. Do not merge or publish changes without explicit approval.
+- This branch was created from the initial `main` commit. The user subsequently uploaded the official API contract files to `main`; exact copies are now included in this feature branch under `docs/creator-api/`.
+- Keep implementation work on this feature branch. Do not merge or publish changes without explicit approval.
 - Preserve the existing Electron + React + TypeScript application and the working LM Studio IPC contract while extending it.
 - Voyage API credentials must remain in Electron's main process and must never enter renderer state, prompts, logs, or source control.
 - Publish/unpublish must remain explicit user-initiated actions with a confirmation step.
@@ -40,56 +40,64 @@ The renderer consumes these methods through `window.api.lmStudio`. Preserve thes
 5. **Packaging metadata:** author, homepage, and generic update URL still contain template values. Do not configure a real update feed until a release/update strategy is chosen.
 6. **Preload typing:** `src/preload/index.d.ts` names the bridge `VoyageAPI` although it currently exposes only LM Studio. Consider a neutral `AppAPI` name when extending it, while preserving renderer compatibility.
 
-## Official Creator API contract facts verified from Voyage documentation
+## Official Creator API contract captured
 
-Documentation reviewed:
+The user uploaded both official artifacts to the repository's `main` branch. They were read and copied byte-for-byte into this feature branch:
 
-- https://voyage.io/studio/api-docs
-- https://voyage.io/studio/api-docs/agent-specification
+- [OpenAPI contract](creator-api/openapi.json) — source blob SHA `412bc6af1ab275d1d2383c12573e58f20e08d390`
+- [Agent guide](creator-api/agent-guide.md) — source blob SHA `0b09555c29a50c284d87c69416d45d9476511b03`
 
-The production base URL is `https://api.aidungeon.com/creator/v1`; endpoint paths are relative to `/creator/v1`. The production host must be used consistently unless the creator explicitly chooses an experimental environment.
+The OpenAPI document identifies itself as version `1.3.0-preview`, OpenAPI `3.1.0`. Its server URL is relative (`/creator/v1`); production base URL is `https://api.aidungeon.com/creator/v1`. Use one selected environment consistently. Alpha/Beta may upgrade a shared world draft beyond production compatibility. Never switch environments or alter version fields automatically.
 
-Authentication uses `Authorization: Bearer sk-voyage-v1-...`. Keys are created in Creator Studio under Settings → API keys and are shown only once.
+### Contract endpoints found
 
-The documented safe world-edit workflow is:
+- Worlds: `GET/POST /worlds`, `GET/PUT /worlds/{shortId}`, `POST /worlds/{shortId}/duplicate`.
+- Ordering: `PATCH /worlds/{shortId}/order` with `If-Match`, for object-key order only (not arrays).
+- Validation: `POST /validate`, with `draft` or stricter `publish` stage.
+- Revisions: list, download, and `POST .../restore`.
+- Publication: `POST /worlds/{shortId}/publish` and `/unpublish`.
+- Moderation: `GET/POST /worlds/{shortId}/moderation`.
+- Metadata: `GET /mods`, `GET /usage`.
+- Image upload: `POST /uploads`, signed-URL byte upload, moderation, and deletion of unmoderated/rejected uploads.
+- Music upload: `POST /uploads/music`, signed-URL byte upload, then `POST /uploads/music/{uploadId}/finalize`.
+- Generated images: area, location, NPC portrait, and region-map endpoints.
 
-1. List owned worlds with `GET /worlds`.
-2. Download the live draft with `GET /worlds/{shortId}` and retain its ETag.
-3. Keep a local checkpoint.
-4. Edit the complete world document, preserving `shortId` and `initialGameState`.
-5. Validate with `POST /validate`.
-6. Replace the complete world document with `PUT /worlds/{shortId}` and the current `If-Match` value.
-7. Read the world again and verify the intended changes.
+The contract explicitly excludes Creator Studio chat, conversations, agent runs, cancellation, undo, and server-pushed events. Therefore this app's local LM Studio model must act as an external planning/editor assistant; it cannot drive the internal Studio agent through this API.
 
-Important documented safeguards:
+### Authentication discrepancy to resolve
 
-- A stale ETag returns HTTP 412; re-read and reconcile rather than blindly retrying a full replacement.
-- Side-effecting POST requests require a unique `Idempotency-Key`.
-- `request_in_progress` and `request_status_unknown` require reconciliation; never issue a new mutation blindly after an unknown outcome.
-- The JSON request limit is 64 MiB.
-- Documented account limits: 480 total requests/minute, 120 mutation requests/minute, and 20 costly requests/minute.
-- Creator API does not expose Creator Studio chat, Studio agent conversations, agent runs, cancellation, undo, or server-pushed event subscriptions.
-- Publishing and unpublishing endpoints exist, but this application will gate them behind explicit user confirmation.
+The earlier human-readable overview refers to Creator API keys. The newly uploaded `agent-guide.md` specifically says **Player API keys**, requires the `sk-voyage-v1-` format, a required scope, an active account, and Creator Studio plus Creator API rollout access (unless the account is a developer). Treat the uploaded guide and selected-host OpenAPI contract as the implementation source of truth, but verify the exact key creation UI/permissions with the user before building onboarding copy. Do not assume an API key can be created by the app.
 
-## Contract artifact still required before implementation
+### Critical data and mutation rules
 
-Voyage's official agent specification explicitly instructs integrators to retrieve `GET /openapi.json` and `GET /agent-guide.md` from the production base URL before implementation. The documentation pages were readable, but those raw API-host artifacts could not be retrieved through the available GitHub/web connectors during this audit.
-
-**Do not implement request/response types or endpoint payloads from guesses or third-party examples.** Before implementing the Voyage client, obtain and review the production OpenAPI document and agent guide, then record the exact contract version/content used.
+- A world response is an envelope containing `data.world` (per guide) and its ETag; preserve the full `shortId` and `initialGameState`. The OpenAPI schemas define the editable world fields.
+- Canonical `initialGameState` ownership is root-level shared fields plus party-owned data under `parties[partyId]`. Preserve all party records. Do not flatten or normalize unknown authored content.
+- Save a local checkpoint before changes; validate; replace the complete world with current `If-Match`; read back and verify.
+- Every side-effecting POST requires a unique `Idempotency-Key`. Reuse a key only for an exact retry of the same request.
+- A stale `If-Match` returns 412; re-read and reconcile. Never blindly retry a full replacement.
+- `request_in_progress` means the idempotency key remains protected; respect `Retry-After`.
+- `request_status_unknown` means the mutation may have happened. Reconcile the observable world/Studio state before any new mutation.
+- Clean pre-side-effect failures such as `studio_unavailable` release the idempotency claim; honor the documented retry guidance.
+- The JSON request limit is 64 MiB. Account limits are 480 total requests/minute, 120 mutation requests/minute, and 20 costly requests/minute.
+- The API's OpenAPI `x-media-constraints` defines image upload MIME types, 5 MiB maximum, and per-target dimensions. Do not hardcode stale image rules separately.
+- AI image generation requires a paid Voyage plan. Custom direct image upload remains a separate flow.
+- Custom music uploads have their own file types, size and quota rules, and require finalization. Music generation is not exposed.
+- Publishing may trigger cover-review/moderation requirements. The app must validate and present the outcome, then require explicit user confirmation before publication.
 
 ## Verification status
 
 | Check | Status |
 |---|---|
-| Feature branch created from `main` | Passed |
+| Feature branch created from initial `main` | Passed |
 | Repository tree and key source/config files reviewed | Passed |
 | Official Creator API overview and agent specification reviewed | Passed |
-| Production `openapi.json` retrieved | Blocked — raw API host inaccessible through current connectors |
-| Production `agent-guide.md` retrieved | Blocked — raw API host inaccessible through current connectors |
+| Uploaded OpenAPI contract copied into feature branch | Passed |
+| Uploaded agent guide copied into feature branch | Passed |
+| Contract version and endpoint inventory parsed | Passed |
 | `npm run typecheck` | Not run — requires local project environment |
 | `npm run build` | Not run — requires local project environment |
 | Windows packaging build | Not run |
 
 ## Next step
 
-Obtain the official production `openapi.json` and `agent-guide.md`, then complete a contract review. After that, implement the isolated Voyage HTTP client and secure credential storage without changing the existing renderer or LM Studio behavior.
+Complete a focused contract review of request/response envelopes, error codes, auth/key requirements, and upload flows. Then implement the isolated Voyage HTTP client and secure credential storage without changing the existing renderer or LM Studio behavior. Before exposing API-key setup in the UI, resolve the Player API key wording/permissions discrepancy with the creator.
