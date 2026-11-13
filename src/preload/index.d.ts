@@ -76,6 +76,7 @@ interface WorldIndexSummary {
   worldId: string
   generatedAt: string
   nodeCount: number
+  complete: boolean
   rootKeys: string[]
 }
 interface WorldIndexSearchResult {
