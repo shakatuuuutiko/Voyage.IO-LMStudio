@@ -168,6 +168,8 @@ interface AppAPI {
     createWorld: (payload: Record<string, unknown>) => Promise<{ success: boolean; created?: unknown; error?: string }>
     duplicateWorld: (shortId: string) => Promise<{ success: boolean; duplicated?: unknown; error?: string }>
     reorderObjectKeys: (payload: { shortId: string; path: string[]; keys: string[] }) => Promise<{ success: boolean; reordered?: boolean; world?: VoyageWorld | null; etag?: string | null; refreshError?: string; error?: string }>
+    listMods: () => Promise<{ success: boolean; mods?: unknown; error?: string }>
+    getUsage: () => Promise<{ success: boolean; usage?: unknown; error?: string }>
     readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
     listRevisions: (shortId: string) => Promise<{ success: boolean; revisions?: VoyageRevisionSummary[]; error?: string }>
     readRevision: (payload: { shortId: string; revisionId: string }) => Promise<{ success: boolean; revision?: VoyageRevisionDownload; error?: string }>
