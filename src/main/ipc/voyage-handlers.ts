@@ -44,6 +44,7 @@ export function registerVoyageIpcHandlers(): void {
   ipcMain.removeHandler('voyage:restore-revision')
   ipcMain.removeHandler('voyage:create-world')
   ipcMain.removeHandler('voyage:duplicate-world')
+  ipcMain.removeHandler('voyage:reorder-object-keys')
 
   ipcMain.handle('voyage:get-status', async () => {
     try {
@@ -124,6 +125,23 @@ export function registerVoyageIpcHandlers(): void {
       if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
       const duplicated = await new VoyageCreatorClient(apiKey).duplicateWorld(shortId)
       return { success: true, duplicated }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+
+  ipcMain.handle('voyage:reorder-object-keys', async (_event, payload: unknown) => {
+    try {
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Se requieren el mundo, la ruta del objeto y las claves.')
+      const input = payload as Record<string, unknown>
+      if (typeof input.shortId !== 'string' || !Array.isArray(input.path) || !Array.isArray(input.keys)) {
+        throw new Error('Los datos de reordenamiento no tienen un formato válido.')
+      }
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const result = await new VoyageCreatorClient(apiKey).reorderWorldObjectKeys(input.shortId, input.path as string[], input.keys as string[])
+      return { success: true, ...result }
     } catch (error) {
       return { success: false, error: getErrorMessage(error) }
     }
