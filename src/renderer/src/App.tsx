@@ -415,7 +415,7 @@ function App(): React.JSX.Element {
   }
 
   async function loadVoyageWorlds(): Promise<boolean> {
-    if (worldListBusy) return false
+    if (worldListBusy || coverUploadBusy || itemImageUploadBusy) return false
     setWorldListBusy(true)
     setWorldListOutput('')
     try {
@@ -998,6 +998,7 @@ function App(): React.JSX.Element {
   }
 
   async function saveSelectedWorld(): Promise<void> {
+    if (coverUploadBusy || itemImageUploadBusy) return
     if (!selectedWorldId || !selectedWorldDocument || !selectedWorldDraft || !selectedWorldEtag) {
       setWorldValidationError('No se puede guardar: falta el documento original o su ETag. Vuelve a abrir el mundo.')
       return
@@ -1066,7 +1067,7 @@ function App(): React.JSX.Element {
   }
 
   async function validateSelectedWorld(): Promise<void> {
-    if (!selectedWorldInitialGameState || worldValidationBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldInitialGameState || worldValidationBusy) return
     setWorldValidationBusy(true)
     setWorldValidation(null)
     setWorldValidationError('')
@@ -2093,11 +2094,11 @@ function App(): React.JSX.Element {
                           </button>
                           <p className="helper">Antes de la operación se guarda un checkpoint local. VoyAgent descarga un ETag nuevo, usa If-Match y vuelve a leer el documento. Si la respuesta queda incierta, invalida el ETag local para impedir reintentos con estado obsoleto.</p>
                         </div>
-                        <button className="secondary-button save-world-button" onClick={() => void saveSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || !selectedWorldDraft || !selectedWorldEtag || !worldValidation?.valid}>
+                        <button className="secondary-button save-world-button" onClick={() => void saveSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || coverUploadBusy || itemImageUploadBusy || !selectedWorldDraft || !selectedWorldEtag || !worldValidation?.valid}>
                           Guardar borrador remoto (requiere validación correcta)
                         </button>
                         <p className="helper">El guardado reemplaza el borrador de Creator Studio usando If-Match con el ETag descargado. Exige validación correcta y confirmación explícita. No publica el mundo.</p>
-                        <button className="secondary-button" onClick={() => void validateSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || !selectedWorldDraft}>
+                        <button className="secondary-button" onClick={() => void validateSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || coverUploadBusy || itemImageUploadBusy || !selectedWorldDraft}>
                           {worldValidationBusy ? 'Validando borrador...' : 'Validar borrador (sin guardar)'}
                         </button>
                         {worldValidationError && <p className="helper security-warning" role="alert">{worldValidationError}</p>}
