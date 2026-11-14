@@ -23,3 +23,29 @@ Remote restore remains a future, separately gated operation. Its contract requir
 ## Verification
 
 The implementation is committed on `feature/voyage-creator-api`. Run the local typecheck/build and test the workflow against a world with at least one saved revision. This repository change has not been executed in the user's Windows environment by the assistant.
+
+
+## Restauración remota de revisiones históricas
+
+La interfaz incorpora ahora una acción remota independiente para restaurar una revisión descargada:
+
+- El cliente vuelve a leer el mundo inmediatamente antes de la mutación y exige un ETag fresco.
+- Envía `POST /worlds/{shortId}/revisions/{revisionId}/restore` con `If-Match` e `Idempotency-Key` única generada para esa solicitud.
+- No se envía un GameState ni metadatos en el cuerpo: Voyage restaura el contenido histórico a través de su flujo normal y conserva los metadatos actuales.
+- La confirmación identifica expresamente que la operación modifica el estado activo remoto y crea una nueva revisión; no publica el mundo.
+- Tras la respuesta satisfactoria, la aplicación vuelve a leer el mundo, actualiza documento, ETag, borrador e índice local y crea un snapshot de recuperación.
+- Si la mutación se confirma pero falla la lectura posterior, se invalida el ETag local y se exige reabrir el mundo antes de otra operación.
+- Si se produce un timeout o se pierde la conexión, no se reintenta automáticamente. El usuario debe reabrir el mundo para comprobar el resultado antes de repetir la acción.
+- Los conflictos de revisión y las incompatibilidades se muestran como errores; no se cambia de entorno ni se intenta otra revisión automáticamente.
+
+Esta acción no es equivalente a **Importar al borrador local** ni a **Guardar borrador**. La restauración remota modifica el estado activo de Voyage, mientras que la importación permanece local. Ninguna de las dos publica el mundo.
+
+### Verificación pendiente
+
+En un mundo de prueba con al menos dos revisiones:
+
+1. Descargar y comparar una revisión sin restaurarla; confirmar que no hay cambios remotos.
+2. Importarla al borrador local y comprobar que solo cambia el borrador local.
+3. Restaurar una revisión con la nueva acción y verificar en Creator Studio que aparece como nueva revisión activa y que los metadatos siguen intactos.
+4. Confirmar que la aplicación actualiza el ETag y vuelve a leer el GameState restaurado.
+5. Comprobar el comportamiento ante un ETag obsoleto y una revisión incompatible, sin reintentos automáticos.
