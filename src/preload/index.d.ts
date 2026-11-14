@@ -172,6 +172,7 @@ interface AppAPI {
     getUsage: () => Promise<{ success: boolean; usage?: unknown; error?: string }>
     uploadWorldCover: (shortId: string) => Promise<{ success: boolean; cancelled?: boolean; imageUrl?: string; width?: number; height?: number; bytes?: number; error?: string }>
     uploadItemImage: (payload: { shortId: string; itemKey: string }) => Promise<{ success: boolean; cancelled?: boolean; itemKey?: string; imageUrl?: string; width?: number; height?: number; bytes?: number; error?: string }>
+    uploadAssetImage: (payload: { shortId: string; target: 'AREA_IMAGE' | 'LOCATION_IMAGE' | 'NPC_PORTRAIT' | 'REGION_MAP_IMAGE' }) => Promise<{ success: boolean; cancelled?: boolean; target?: string; imageUrl?: string; width?: number; height?: number; bytes?: number; error?: string }>
     readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
     listRevisions: (shortId: string) => Promise<{ success: boolean; revisions?: VoyageRevisionSummary[]; error?: string }>
     readRevision: (payload: { shortId: string; revisionId: string }) => Promise<{ success: boolean; revision?: VoyageRevisionDownload; error?: string }>
