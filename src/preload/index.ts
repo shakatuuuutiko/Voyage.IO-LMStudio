@@ -34,6 +34,7 @@ const api = {
     readWorld: (shortId: string) => ipcRenderer.invoke('voyage:read-world', shortId),
     listRevisions: (shortId: string) => ipcRenderer.invoke('voyage:list-revisions', shortId),
     readRevision: (payload: { shortId: string; revisionId: string }) => ipcRenderer.invoke('voyage:read-revision', payload),
+    restoreRevision: (payload: { shortId: string; revisionId: string }) => ipcRenderer.invoke('voyage:restore-revision', payload),
     validateDraft: (initialGameState: Record<string, unknown>) =>
       ipcRenderer.invoke('voyage:validate-draft', initialGameState),
     saveWorld: (payload: { shortId: string; etag: string; world: Record<string, unknown> }) =>
