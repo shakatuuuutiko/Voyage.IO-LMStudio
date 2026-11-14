@@ -211,6 +211,35 @@ export class VoyageCreatorClient {
     }
   }
 
+  async listWorldRevisions(shortId: string): Promise<import('./types').VoyageRevisionSummary[]> {
+    if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
+    const response = await this.request<unknown>(`/worlds/${encodeURIComponent(shortId.trim())}/revisions`)
+    const envelope = isRecord(response.data) ? response.data : null
+    const data = envelope && isRecord(envelope.data) ? envelope.data : response.data
+    const candidates = Array.isArray(data) ? data : isRecord(data) && Array.isArray(data.revisions) ? data.revisions : null
+    if (!candidates) throw new Error('Voyage devolvió el historial con un formato inesperado. No se interpretó ni modificó ningún dato.')
+    return candidates.flatMap((item) =>
+      isRecord(item) && typeof item.id === 'string' && typeof item.createdAt === 'string'
+        ? [{ id: item.id, createdAt: item.createdAt }]
+        : []
+    )
+  }
+
+  async readWorldRevision(shortId: string, revisionId: string): Promise<import('./types').VoyageRevisionDownload> {
+    if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
+    if (!revisionId.trim() || revisionId.length > 256) throw new Error('El identificador de revisión no es válido.')
+    const response = await this.request<unknown>(
+      `/worlds/${encodeURIComponent(shortId.trim())}/revisions/${encodeURIComponent(revisionId.trim())}`
+    )
+    const envelope = isRecord(response.data) ? response.data : null
+    const data = envelope && isRecord(envelope.data) ? envelope.data : response.data
+    const candidate = isRecord(data) && isRecord(data.world) ? data.world : data
+    if (!isRecord(candidate) || candidate.shortId !== shortId || !isRecord(candidate.initialGameState)) {
+      throw new Error('La revisión descargada no contiene shortId e initialGameState válidos. No se modificó el borrador.')
+    }
+    return { shortId, initialGameState: candidate.initialGameState }
+  }
+
   async validateDraft(
     initialGameState: Record<string, unknown>
   ): Promise<VoyageValidationResult> {
