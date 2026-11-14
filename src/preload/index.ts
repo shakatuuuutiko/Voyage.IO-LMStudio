@@ -32,6 +32,8 @@ const api = {
     testConnection: () => ipcRenderer.invoke('voyage:test-connection'),
     listWorlds: () => ipcRenderer.invoke('voyage:list-worlds'),
     readWorld: (shortId: string) => ipcRenderer.invoke('voyage:read-world', shortId),
+    listRevisions: (shortId: string) => ipcRenderer.invoke('voyage:list-revisions', shortId),
+    readRevision: (payload: { shortId: string; revisionId: string }) => ipcRenderer.invoke('voyage:read-revision', payload),
     validateDraft: (initialGameState: Record<string, unknown>) =>
       ipcRenderer.invoke('voyage:validate-draft', initialGameState),
     saveWorld: (payload: { shortId: string; etag: string; world: Record<string, unknown> }) =>
