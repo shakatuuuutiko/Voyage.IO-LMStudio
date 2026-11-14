@@ -33,6 +33,7 @@ const api = {
     listWorlds: () => ipcRenderer.invoke('voyage:list-worlds'),
     createWorld: (payload: Record<string, unknown>) => ipcRenderer.invoke('voyage:create-world', payload),
     duplicateWorld: (shortId: string) => ipcRenderer.invoke('voyage:duplicate-world', shortId),
+    reorderObjectKeys: (payload: { shortId: string; path: string[]; keys: string[] }) => ipcRenderer.invoke('voyage:reorder-object-keys', payload),
     readWorld: (shortId: string) => ipcRenderer.invoke('voyage:read-world', shortId),
     listRevisions: (shortId: string) => ipcRenderer.invoke('voyage:list-revisions', shortId),
     readRevision: (payload: { shortId: string; revisionId: string }) => ipcRenderer.invoke('voyage:read-revision', payload),
