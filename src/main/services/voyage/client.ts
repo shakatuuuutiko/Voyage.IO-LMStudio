@@ -174,9 +174,20 @@ export class VoyageCreatorClient {
     return this.uploadAndModerateImage(shortId, 'ITEM_IMAGE', bytes, width, height, mimeType)
   }
 
+  async uploadAndModerateAssetImage(
+    shortId: string,
+    target: 'AREA_IMAGE' | 'LOCATION_IMAGE' | 'NPC_PORTRAIT' | 'REGION_MAP_IMAGE',
+    bytes: Uint8Array,
+    width: number,
+    height: number,
+    mimeType: 'image/png' | 'image/jpeg' | 'image/webp'
+  ): Promise<{ imageUrl: string }> {
+    return this.uploadAndModerateImage(shortId, target, bytes, width, height, mimeType)
+  }
+
   private async uploadAndModerateImage(
     shortId: string,
-    target: 'WORLD_COVER' | 'ITEM_IMAGE',
+    target: 'WORLD_COVER' | 'ITEM_IMAGE' | 'AREA_IMAGE' | 'LOCATION_IMAGE' | 'NPC_PORTRAIT' | 'REGION_MAP_IMAGE',
     bytes: Uint8Array,
     width: number,
     height: number,
@@ -186,8 +197,8 @@ export class VoyageCreatorClient {
     if (!(width > 0 && height > 0 && Number.isInteger(width) && Number.isInteger(height))) {
       throw new Error('Las dimensiones de la imagen no son válidas.')
     }
-    if (target === 'ITEM_IMAGE' && (width < 600 || height < 600)) {
-      throw new Error('Las imágenes de objetos deben medir al menos 600 × 600 píxeles.')
+    if (target !== 'WORLD_COVER' && (width < 600 || height < 600)) {
+      throw new Error('Las imágenes de contenido deben medir al menos 600 × 600 píxeles.')
     }
     if (bytes.byteLength < 1 || bytes.byteLength > 5 * 1024 * 1024) {
       throw new Error('La imagen debe ocupar entre 1 byte y 5 MiB.')
