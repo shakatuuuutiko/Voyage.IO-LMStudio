@@ -18,3 +18,14 @@ export interface ReadWorldResult {
   world: EditableWorld
   etag: string | null
 }
+
+
+export interface VoyageRevisionSummary {
+  id: string
+  createdAt: string
+}
+
+export interface VoyageRevisionDownload {
+  shortId: string
+  initialGameState: Record<string, unknown>
+}
