@@ -510,12 +510,16 @@ function App(): React.JSX.Element {
       setWorldValidationError('')
       const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: next })
       if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+      let checkpointWarning = ''
       await createDraftCheckpoint('manual-checkpoint', 'Imagen moderada asignada a ' + selectedItemImageKey, next)
+        .catch((error) => { checkpointWarning = error instanceof Error ? error.message : 'No se pudo guardar el checkpoint posterior.' })
       await refreshDraftSnapshots(selectedWorldId)
+        .catch((error) => { checkpointWarning = checkpointWarning || (error instanceof Error ? error.message : 'No se pudo actualizar el historial local.') })
       setWorkspaceNotice(
         'Imagen moderada (' + result.width + '×' + result.height + ', ' +
         ((result.bytes || 0) / 1024).toFixed(1) + ' KiB) asignada a itemTypes.' +
-        selectedItemImageKey + '.imageUrl únicamente en el borrador local. Valida y guarda cuando quieras.'
+        selectedItemImageKey + '.imageUrl únicamente en el borrador local. Valida y guarda cuando quieras.' +
+        (checkpointWarning ? ' Aviso local: ' + checkpointWarning : '')
       )
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo subir y moderar la imagen del objeto.')
@@ -2090,7 +2094,7 @@ function App(): React.JSX.Element {
                           })()}
                           {selectedWorldDraft && selectedWorldInitialGameState && JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState) &&
                             <p className="helper security-warning">Hay cambios locales pendientes. Debes guardarlos o descartarlos antes de usar el reordenamiento remoto.</p>}
-                          <button className="secondary-button" onClick={() => void reorderSelectedWorldObject()} disabled={orderBusy || worldReadBusy || worldValidationBusy || Boolean(moderatedCoverUrl) || !selectedWorldDraft || JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)}>
+                          <button className="secondary-button" onClick={() => void reorderSelectedWorldObject()} disabled={orderBusy || worldReadBusy || worldValidationBusy || coverUploadBusy || itemImageUploadBusy || Boolean(moderatedCoverUrl) || !selectedWorldDraft || JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)}>
                             {orderBusy ? 'Reordenando en Voyage...' : 'Reordenar claves en Voyage'}
                           </button>
                           <p className="helper">Antes de la operación se guarda un checkpoint local. VoyAgent descarga un ETag nuevo, usa If-Match y vuelve a leer el documento. Si la respuesta queda incierta, invalida el ETag local para impedir reintentos con estado obsoleto.</p>
