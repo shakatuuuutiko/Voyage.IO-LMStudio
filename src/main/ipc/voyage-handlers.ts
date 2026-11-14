@@ -50,6 +50,7 @@ export function registerVoyageIpcHandlers(): void {
   ipcMain.removeHandler('voyage:list-mods')
   ipcMain.removeHandler('voyage:get-usage')
   ipcMain.removeHandler('voyage:upload-world-cover')
+  ipcMain.removeHandler('voyage:upload-item-image')
 
 
   ipcMain.handle('voyage:list-mods', async () => {
@@ -221,6 +222,61 @@ export function registerVoyageIpcHandlers(): void {
         shortId, bytes, width, height, mimeType
       )
       return { success: true, imageUrl: result.imageUrl, width, height, bytes: fileInfo.size }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:upload-item-image', async (_event, payload: unknown) => {
+    try {
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Selecciona un mundo y un objeto válido.')
+      const input = payload as Record<string, unknown>
+      if (typeof input.shortId !== 'string' || !input.shortId.trim()) throw new Error('Abre primero un mundo.')
+      if (typeof input.itemKey !== 'string' || !input.itemKey.trim() || input.itemKey.length > 256) {
+        throw new Error('La clave del objeto no es válida.')
+      }
+      const selection = await dialog.showOpenDialog({
+        title: 'Seleccionar imagen del objeto',
+        properties: ['openFile'],
+        filters: [{ name: 'Imágenes compatibles', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+      })
+      if (selection.canceled || selection.filePaths.length === 0) return { success: false, cancelled: true }
+
+      const filePath = selection.filePaths[0]
+      const extension = extname(filePath).toLocaleLowerCase()
+      const mimeByExtension: Record<string, 'image/png' | 'image/jpeg' | 'image/webp'> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp'
+      }
+      const mimeType = mimeByExtension[extension]
+      if (!mimeType) throw new Error('Formato no compatible. Usa PNG, JPG o WebP.')
+      const fileInfo = await stat(filePath)
+      if (!fileInfo.isFile() || fileInfo.size < 1 || fileInfo.size > 5 * 1024 * 1024) {
+        throw new Error('La imagen debe ser un archivo válido de hasta 5 MiB.')
+      }
+      const bytes = await readFile(filePath)
+      const hasPngSignature = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      const hasJpegSignature = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+      const hasWebpSignature = bytes.length >= 12 && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP'
+      if ((mimeType === 'image/png' && !hasPngSignature) ||
+        (mimeType === 'image/jpeg' && !hasJpegSignature) ||
+        (mimeType === 'image/webp' && !hasWebpSignature)) {
+        throw new Error('La extensión del archivo no coincide con su contenido real.')
+      }
+      const decoded = nativeImage.createFromPath(filePath)
+      if (decoded.isEmpty()) throw new Error('Electron no pudo decodificar la imagen seleccionada.')
+      const { width, height } = decoded.getSize()
+      if (!Number.isInteger(width) || !Number.isInteger(height) || width < 600 || height < 600) {
+        throw new Error('Las imágenes de objetos deben medir al menos 600 × 600 píxeles.')
+      }
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const result = await new VoyageCreatorClient(apiKey).uploadAndModerateItemImage(
+        input.shortId, bytes, width, height, mimeType
+      )
+      return { success: true, itemKey: input.itemKey, imageUrl: result.imageUrl, width, height, bytes: fileInfo.size }
     } catch (error) {
       return { success: false, error: getErrorMessage(error) }
     }
