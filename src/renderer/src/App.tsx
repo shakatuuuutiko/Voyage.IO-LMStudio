@@ -88,6 +88,16 @@ function readPath(root: unknown, path: string[]): { value: unknown; exists: bool
   return { value: current, exists: true }
 }
 
+function parseJsonPointer(pointer: string): string[] {
+  if (!pointer.startsWith('/') || pointer.length > 1024) {
+    throw new Error('Introduce una ruta JSON Pointer absoluta dentro de initialGameState, comenzando por "/".')
+  }
+  return pointer.slice(1).split('/').map((segment) => {
+    if (/~(?![01])/.test(segment)) throw new Error('La ruta JSON Pointer contiene un escape "~" no válido.')
+    return segment.replace(/~1/g, '/').replace(/~0/g, '~')
+  })
+}
+
 function removePath(root: Record<string, unknown>, path: string[]): Record<string, unknown> {
   const next = JSON.parse(JSON.stringify(root)) as Record<string, unknown>
   let current: unknown = next
@@ -273,6 +283,9 @@ function App(): React.JSX.Element {
   const [coverUploadBusy, setCoverUploadBusy] = useState(false)
   const [itemImageUploadBusy, setItemImageUploadBusy] = useState(false)
   const [selectedItemImageKey, setSelectedItemImageKey] = useState('')
+  const [assetImageUploadBusy, setAssetImageUploadBusy] = useState(false)
+  const [assetImageTarget, setAssetImageTarget] = useState<'AREA_IMAGE' | 'LOCATION_IMAGE' | 'NPC_PORTRAIT' | 'REGION_MAP_IMAGE'>('NPC_PORTRAIT')
+  const [assetImagePathInput, setAssetImagePathInput] = useState('')
   const [moderatedCoverUrl, setModeratedCoverUrl] = useState('')
   const [voyageWorlds, setVoyageWorlds] = useState<VoyageWorldSummary[]>([])
   const [worldTotalCount, setWorldTotalCount] = useState(0)
@@ -525,6 +538,63 @@ function App(): React.JSX.Element {
       setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo subir y moderar la imagen del objeto.')
     } finally {
       setItemImageUploadBusy(false)
+    }
+  }
+
+  async function uploadSelectedAssetImage(): Promise<void> {
+    if (!selectedWorldId || !selectedWorldDraft || assetImageUploadBusy || coverUploadBusy || itemImageUploadBusy || worldReadBusy || worldValidationBusy) return
+    let path: string[]
+    try {
+      path = parseJsonPointer(assetImagePathInput.trim())
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'La ruta JSON Pointer no es válida.')
+      return
+    }
+    const existing = readPath(selectedWorldDraft, path)
+    if (!existing.exists || (existing.value !== null && typeof existing.value !== 'string')) {
+      setWorkspaceNotice('La ruta debe señalar un campo de imagen que ya exista y cuyo valor sea texto o null. No se crearán campos ni se supondrá el esquema.')
+      return
+    }
+    if (!window.confirm(
+      'Se subirá una imagen con destino ' + assetImageTarget +
+      ' y se moderará en Voyage. La URL se asignará únicamente al campo existente "' +
+      assetImagePathInput.trim() + '" del borrador local. ¿Continuar?'
+    )) return
+
+    setAssetImageUploadBusy(true)
+    setWorkspaceNotice('Selecciona una imagen PNG, JPG o WebP de al menos 600 × 600 píxeles y hasta 5 MiB...')
+    try {
+      await createDraftCheckpoint('manual-checkpoint', 'Antes de asignar imagen ' + assetImageTarget)
+      const result = await window.api.voyage.uploadAssetImage({
+        shortId: selectedWorldId,
+        target: assetImageTarget
+      })
+      if (result.cancelled) {
+        setWorkspaceNotice('Selección de imagen cancelada. No se realizó ninguna carga.')
+        return
+      }
+      if (!result.imageUrl) throw new Error(result.error || 'Voyage no devolvió una imagen moderada.')
+      const next = writePath(selectedWorldDraft, path, result.imageUrl)
+      setSelectedWorldDraft(next)
+      setWorldValidation(null)
+      setWorldValidationError('')
+      const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: next })
+      if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+      let checkpointWarning = ''
+      await createDraftCheckpoint('manual-checkpoint', 'Imagen ' + assetImageTarget + ' asignada en ' + assetImagePathInput.trim(), next)
+        .catch((error) => { checkpointWarning = error instanceof Error ? error.message : 'No se pudo guardar el checkpoint posterior.' })
+      await refreshDraftSnapshots(selectedWorldId)
+        .catch((error) => { checkpointWarning = checkpointWarning || (error instanceof Error ? error.message : 'No se pudo actualizar el historial local.') })
+      setWorkspaceNotice(
+        'Imagen moderada (' + result.width + '×' + result.height + ', ' +
+        ((result.bytes || 0) / 1024).toFixed(1) + ' KiB) asignada a "' + assetImagePathInput.trim() +
+        '" únicamente en el borrador local. Valida y guarda cuando quieras.' +
+        (checkpointWarning ? ' Aviso local: ' + checkpointWarning : '')
+      )
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo subir y moderar la imagen.')
+    } finally {
+      setAssetImageUploadBusy(false)
     }
   }
 
