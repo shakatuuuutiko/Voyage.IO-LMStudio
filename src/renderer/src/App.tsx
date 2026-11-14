@@ -627,6 +627,7 @@ function App(): React.JSX.Element {
       setWorldValidationError('')
       setSelectedWorldJson('')
       await createDraftCheckpoint('before-restore', 'Contenido de revisión remota importado al borrador local', imported)
+        .catch((error) => setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot posterior a la importación.'))
       await refreshDraftSnapshots(selectedWorldId)
       setWorkspaceNotice('Revisión remota copiada al borrador local. Voyage no fue modificado; valida antes de cualquier guardado remoto.')
     } catch (error) {
