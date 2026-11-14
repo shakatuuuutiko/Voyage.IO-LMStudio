@@ -152,3 +152,22 @@ After pulling the branch:
 The **Recommend** action now performs up to three total attempts when it cannot produce a usable result. A usable result contains at least one validated change or at least one non-empty suggestion with both a title and an explanation. Invalid JSON, failed section selection, LM Studio request errors/timeouts, truncated output, and proposals with no usable ideas trigger another attempt. Retry prompts include the preceding failure reason and ask the model to explore different concrete ideas.
 
 The app does not retry after a usable recommendation is produced, even when no safe direct edit exists but explanatory suggestions do. After the third failed attempt, it stops, displays a final diagnostic, and records a `LOCAL_AI_RECOMMENDATION_EXHAUSTED` warning in the per-world issue tracker with the reasons from all three attempts. Other modes (explicit user requests and repairs) retain their existing single-attempt behavior. No retry applies changes automatically.
+
+
+## Schema-aware ownership diagnostics — Creator API Preview 1.3
+
+The local index now records schema diagnostics based on the explicit ownership rules in the checked-in Creator API agent guide:
+
+- Shared authored fields remain at the root of `initialGameState`.
+- Party-owned state, quests, arcs, and narrative events belong under `parties[partyId]`.
+- Shared authored triggers use the root `triggerDefinitions` collection.
+
+The index schema is version 3. During rebuild, it emits high-confidence warnings when `parties` is present but is not an object, when a party record is not an object, or when `quests`, `arcs`, or `narrativeEvents` are found at the GameState root. Each warning includes a stable code, JSON Pointer path, explanation, evidence, and confidence label. The renderer displays these diagnostics in the World Knowledge Index.
+
+These are structural placement checks, not a complete GameState JSON Schema and not proof that a particular party owns a given record. The documented contract does not expose field-level foreign-key conventions for factions, NPCs, locations, items, skills, or trigger references, so this increment deliberately does not infer or rewrite those links. It does not move, delete, or repair data. Voyage draft validation remains a separate server-side check.
+
+The proposal prompt also receives the documented ownership rules to reduce suggestions that place party-owned data at the shared root. Existing version-2 local indexes are rebuilt automatically the next time the world is opened because the index schema version has advanced.
+
+### Verification status
+
+Implementation is committed to the feature branch. Local Windows typecheck, build, and runtime verification are still required. Inspect any ownership warning against the actual world structure before changing data; a warning is evidence for review, not an automatic migration instruction.
