@@ -80,7 +80,7 @@ interface WorldSchemaDiagnostic {
   confidence: 'high'
 }
 interface WorldIndexSummary {
-  schemaVersion: 3
+  schemaVersion: 4
   worldId: string
   generatedAt: string
   nodeCount: number
