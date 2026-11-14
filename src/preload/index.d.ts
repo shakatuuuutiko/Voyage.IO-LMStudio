@@ -71,14 +71,23 @@ interface VoyageStatusResult {
 }
 
 
+interface WorldSchemaDiagnostic {
+  code: string
+  severity: 'warning'
+  path: string
+  message: string
+  evidence: string
+  confidence: 'high'
+}
 interface WorldIndexSummary {
-  schemaVersion: 2
+  schemaVersion: 3
   worldId: string
   generatedAt: string
   nodeCount: number
   complete: boolean
   rootKeys: string[]
   relationshipCount: number
+  schemaDiagnostics: WorldSchemaDiagnostic[]
 }
 interface WorldRelationshipResult {
   matchedPath: string
