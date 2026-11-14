@@ -16,7 +16,7 @@ The application parses the opaque revision ID and creation timestamp, and valida
 
 ## Mutation boundary
 
-This phase does not call the remote restore endpoint, replace the live Voyage draft, or publish the world. Importing a remote revision is a local draft operation only. The user must run Voyage validation and use the separate conditional-save workflow to change the live draft.
+Previewing or importing a remote revision does not call the restore endpoint, replace the live Voyage draft, or publish the world. Importing remains a local draft operation only. A separate, explicitly confirmed restore action is documented below; ordinary local edits still require Voyage validation and the conditional-save workflow.
 
 Remote restore was deliberately deferred in the initial read-only history increment. It is now implemented as a separately gated action in the section below. Its contract requires a fresh `ETag`, an `If-Match` header, and a unique `Idempotency-Key`; it creates a new live head revision and is not equivalent to local import. It is never triggered by previewing or importing a revision.
 
