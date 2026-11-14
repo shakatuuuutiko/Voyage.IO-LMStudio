@@ -205,10 +205,16 @@ export class VoyageCreatorClient {
         throw new Error('El almacenamiento rechazó la transferencia de imagen (HTTP ' + uploadResponse.status + ').')
       }
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('La transferencia de imagen agotó el tiempo de espera. La autorización puede seguir pendiente hasta expirar.')
+      clearTimeout(uploadTimeout)
+      const uploadError = error instanceof Error && error.name === 'AbortError'
+        ? 'La transferencia de imagen agotó el tiempo de espera.'
+        : error instanceof Error ? error.message : 'No se pudo transferir la imagen al almacenamiento.'
+      try {
+        await this.request<unknown>(`/uploads/${encodeURIComponent(allowance.uploadId)}`, { method: 'DELETE' })
+      } catch {
+        throw new Error(uploadError + ' No se pudo limpiar la autorización temporal; puede requerir limpieza posterior.')
       }
-      throw error instanceof Error ? error : new Error('No se pudo transferir la imagen al almacenamiento.')
+      throw new Error(uploadError + ' Se solicitó la limpieza del archivo temporal.')
     } finally {
       clearTimeout(uploadTimeout)
     }
