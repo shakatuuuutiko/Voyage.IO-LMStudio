@@ -39,6 +39,20 @@ export interface VoyageConnectionResult {
   message: string
 }
 
+export interface CreateVoyageWorldInput {
+  title: string
+  description?: string | null
+  advancedDescription?: string | null
+  discordThreadUrl?: string | null
+  image?: string | null
+  initialGameState: Record<string, unknown>
+  isLocked?: boolean
+  isMod?: boolean
+  isUnremixable?: boolean
+  tags?: string[]
+  visibility?: 'private' | 'unlisted'
+}
+
 export interface VoyageValidationIssue {
   code: string
   message: string
@@ -142,6 +156,34 @@ export class VoyageCreatorClient {
   async listWorlds(): Promise<unknown> {
     // The list response is not fully described in OpenAPI; preserve it without guessing.
     const response = await this.request<unknown>('/worlds?page=0&type=world')
+    return response.data
+  }
+
+  async createWorld(input: CreateVoyageWorldInput): Promise<unknown> {
+    if (!input.title.trim() || input.title.length > 256) throw new Error('El título debe tener entre 1 y 256 caracteres.')
+    if (!isRecord(input.initialGameState)) throw new Error('El initialGameState debe ser un objeto JSON.')
+    if (input.tags && (input.tags.length > 10 || input.tags.some((tag) => typeof tag !== 'string' || tag.length > 25))) {
+      throw new Error('Voyage permite hasta 10 etiquetas de un máximo de 25 caracteres.')
+    }
+    const world: CreateVoyageWorldInput = {
+      ...input,
+      title: input.title.trim(),
+      visibility: input.visibility || 'private'
+    }
+    const response = await this.request<unknown>('/worlds', {
+      method: 'POST',
+      body: { world },
+      idempotencyKey: randomUUID()
+    })
+    return response.data
+  }
+
+  async duplicateWorld(shortId: string): Promise<unknown> {
+    if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
+    const response = await this.request<unknown>(
+      `/worlds/${encodeURIComponent(shortId.trim())}/duplicate`,
+      { method: 'POST', idempotencyKey: randomUUID() }
+    )
     return response.data
   }
 
