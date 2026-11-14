@@ -581,13 +581,14 @@ function App(): React.JSX.Element {
   }
 
   async function openVoyageWorld(world: VoyageWorldSummary): Promise<void> {
-    if (worldReadBusy) return
+    if (worldReadBusy || coverUploadBusy) return
     setWorldReadBusy(true)
     setSelectedWorldId(world.shortId)
     setSelectedWorldTitle(world.title)
     setSelectedWorldEtag(null)
     setSelectedWorldDocument(null)
     setSelectedWorldJson('')
+    setModeratedCoverUrl('')
     setSelectedWorldInitialGameState(null)
     setSelectedWorldDraft(null)
     setWorldIndex(null)
@@ -1644,7 +1645,7 @@ function App(): React.JSX.Element {
               Eliminar API Key
             </button>
             {voyageNotice && <p className="helper" role="status">{voyageNotice}</p>}
-            <button className="secondary-button" onClick={() => void loadVoyageWorlds()} disabled={worldListBusy || !voyageConfigured}>
+            <button className="secondary-button" onClick={() => void loadVoyageWorlds()} disabled={worldListBusy || coverUploadBusy || !voyageConfigured}>
               {worldListBusy ? 'Consultando mundos...' : 'Consultar mis mundos'}
             </button>
             {worldListOutput && <div className="world-list-inspector">
