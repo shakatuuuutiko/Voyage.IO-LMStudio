@@ -297,6 +297,9 @@ function App(): React.JSX.Element {
   const [draftSnapshots, setDraftSnapshots] = useState<Array<{ id: string; worldId: string; createdAt: string; source: string; label: string; bytes: number; sha256: string }>>([])
   const [snapshotBusy, setSnapshotBusy] = useState(false)
   const [snapshotPreview, setSnapshotPreview] = useState<{ summary: { id: string; createdAt: string; source: string; label: string; bytes: number }; gameState: Record<string, unknown> } | null>(null)
+  const [remoteRevisions, setRemoteRevisions] = useState<Array<{ id: string; createdAt: string }>>([])
+  const [remoteRevisionBusy, setRemoteRevisionBusy] = useState(false)
+  const [remoteRevisionPreview, setRemoteRevisionPreview] = useState<{ id: string; createdAt: string; gameState: Record<string, unknown> } | null>(null)
 
   const [issueReport, setIssueReport] = useState('')
   const apiKeyInput = useRef<HTMLInputElement>(null)
@@ -304,6 +307,10 @@ function App(): React.JSX.Element {
   const snapshotComparison = useMemo(
     () => snapshotPreview && selectedWorldDraft ? buildProposalDiff(snapshotPreview.gameState, selectedWorldDraft, 20) : [],
     [snapshotPreview, selectedWorldDraft]
+  )
+  const remoteRevisionComparison = useMemo(
+    () => remoteRevisionPreview && selectedWorldDraft ? buildProposalDiff(remoteRevisionPreview.gameState, selectedWorldDraft, 20) : [],
+    [remoteRevisionPreview, selectedWorldDraft]
   )
 
   async function loadModels(): Promise<void> {
@@ -410,6 +417,8 @@ function App(): React.JSX.Element {
       setSelectedWorldDraft(null)
       setDraftSnapshots([])
       setSnapshotPreview(null)
+      setRemoteRevisions([])
+      setRemoteRevisionPreview(null)
       setProposalChanges([])
       setSelectedProposalPaths([])
       setProposalSuggestions([])
@@ -442,6 +451,8 @@ function App(): React.JSX.Element {
     setTrackedIssues([])
     setDraftSnapshots([])
     setSnapshotPreview(null)
+    setRemoteRevisions([])
+    setRemoteRevisionPreview(null)
     setIssueReport('')
     setWorkspaceNotice('')
     setProposalChanges([])
@@ -561,6 +572,67 @@ function App(): React.JSX.Element {
       setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo restaurar el snapshot.')
     } finally {
       setSnapshotBusy(false)
+    }
+  }
+
+  async function loadRemoteRevisions(): Promise<void> {
+    if (!selectedWorldId || remoteRevisionBusy) return
+    setRemoteRevisionBusy(true)
+    setWorkspaceNotice('Consultando el historial remoto de Voyage...')
+    try {
+      const result = await window.api.voyage.listRevisions(selectedWorldId)
+      if (!result.success || !result.revisions) throw new Error(result.error || 'No se pudo consultar el historial remoto.')
+      setRemoteRevisions(result.revisions)
+      setRemoteRevisionPreview(null)
+      setWorkspaceNotice(`Historial remoto recibido: ${result.revisions.length} revisión(es). La lista es de solo lectura.`)
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo consultar el historial remoto.')
+    } finally {
+      setRemoteRevisionBusy(false)
+    }
+  }
+
+  async function inspectRemoteRevision(revision: { id: string; createdAt: string }): Promise<void> {
+    if (!selectedWorldId || remoteRevisionBusy) return
+    setRemoteRevisionBusy(true)
+    try {
+      const result = await window.api.voyage.readRevision({ shortId: selectedWorldId, revisionId: revision.id })
+      if (!result.success || !result.revision) throw new Error(result.error || 'No se pudo descargar la revisión remota.')
+      setRemoteRevisionPreview({ id: revision.id, createdAt: revision.createdAt, gameState: result.revision.initialGameState })
+      setWorkspaceNotice('Revisión remota descargada para comparación. No se modificó el borrador ni Voyage.')
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo descargar la revisión remota.')
+    } finally {
+      setRemoteRevisionBusy(false)
+    }
+  }
+
+  async function copyRemoteRevisionToLocalDraft(): Promise<void> {
+    if (!selectedWorldId || !selectedWorldDraft || !remoteRevisionPreview || remoteRevisionBusy) return
+    const confirmed = window.confirm('Se reemplazará el borrador local en memoria por el contenido de esta revisión remota. Se guardará antes un checkpoint local. Esto NO restaura ni guarda nada en Voyage. ¿Continuar?')
+    if (!confirmed) return
+    setRemoteRevisionBusy(true)
+    try {
+      await createDraftCheckpoint('before-restore', 'Copia local previa a importar revisión remota')
+      const imported = JSON.parse(JSON.stringify(remoteRevisionPreview.gameState)) as Record<string, unknown>
+      setSelectedWorldDraft(imported)
+      const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: imported })
+      if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+      setProposalChanges([])
+      setSelectedProposalPaths([])
+      setProposalSuggestions([])
+      setProposalIssueId(null)
+      setProposalError('')
+      setWorldValidation(null)
+      setWorldValidationError('')
+      setSelectedWorldJson('')
+      await createDraftCheckpoint('before-restore', 'Contenido de revisión remota importado al borrador local', imported)
+      await refreshDraftSnapshots(selectedWorldId)
+      setWorkspaceNotice('Revisión remota copiada al borrador local. Voyage no fue modificado; valida antes de cualquier guardado remoto.')
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo importar la revisión al borrador local.')
+    } finally {
+      setRemoteRevisionBusy(false)
     }
   }
 
@@ -1395,6 +1467,34 @@ function App(): React.JSX.Element {
                           </div>)}
                           {snapshotComparison.length === 0 && <p className="helper">El snapshot y el borrador actual no presentan diferencias detectables.</p>}
                           <button className="secondary-button" onClick={() => setSnapshotPreview(null)}>Cerrar comparación</button>
+                        </div>}
+                        <div className="world-browser-heading issue-heading">
+                          <strong>HISTORIAL REMOTO DE VOYAGE</strong>
+                          <span>{remoteRevisions.length} REVISIONES</span>
+                        </div>
+                        <p className="helper">Revisiones guardadas por Voyage Creator Studio. Se consultan bajo demanda. Descargar o importar una revisión solo afecta al borrador local; la restauración remota todavía no está habilitada en esta interfaz.</p>
+                        <button className="secondary-button" onClick={() => void loadRemoteRevisions()} disabled={remoteRevisionBusy || !selectedWorldId}>
+                          {remoteRevisionBusy ? 'Consultando...' : 'Consultar revisiones remotas'}
+                        </button>
+                        {remoteRevisions.length === 0 ? <p className="helper">Todavía no se ha consultado el historial remoto o no hay revisiones disponibles.</p> :
+                          remoteRevisions.map((revision) => <article className="index-result" key={revision.id}>
+                            <strong>Revisión guardada · {formatDate(revision.createdAt)}</strong>
+                            <code>{revision.id}</code>
+                            <div className="issue-actions">
+                              <button className="secondary-button" onClick={() => void inspectRemoteRevision(revision)} disabled={remoteRevisionBusy}>Descargar / comparar</button>
+                            </div>
+                          </article>)}
+                        {remoteRevisionPreview && selectedWorldDraft && <div className="proposal-diff">
+                          <strong>Comparación: revisión remota frente al borrador local</strong>
+                          <span className="helper">{remoteRevisionPreview.id} · {formatDate(remoteRevisionPreview.createdAt)}</span>
+                          {remoteRevisionComparison.map((entry, index) => <div className="proposal-diff-row" key={entry.path + index}>
+                            <code>{entry.path}</code><span className="proposal-diff-before">{entry.before}</span><span className="proposal-diff-after">{entry.after}</span>
+                          </div>)}
+                          {remoteRevisionComparison.length === 0 && <p className="helper">La revisión y el borrador local no presentan diferencias detectables.</p>}
+                          <div className="issue-actions">
+                            <button className="secondary-button" onClick={() => void copyRemoteRevisionToLocalDraft()} disabled={remoteRevisionBusy}>Importar al borrador local</button>
+                            <button className="secondary-button" onClick={() => setRemoteRevisionPreview(null)}>Cerrar comparación</button>
+                          </div>
                         </div>}
                         <div className="world-browser-heading issue-heading">
                           <strong>REGISTRO DE PROBLEMAS Y REPARACIONES</strong>
