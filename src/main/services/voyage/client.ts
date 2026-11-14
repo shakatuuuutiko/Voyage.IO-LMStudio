@@ -160,7 +160,7 @@ export class VoyageCreatorClient {
   }
 
   async createWorld(input: CreateVoyageWorldInput): Promise<unknown> {
-    if (!input.title.trim() || input.title.length > 256) throw new Error('El título debe tener entre 1 y 256 caracteres.')
+    if (!input.title.trim()) throw new Error('El título del mundo es obligatorio.')
     if (!isRecord(input.initialGameState)) throw new Error('El initialGameState debe ser un objeto JSON.')
     if (input.tags && (input.tags.length > 10 || input.tags.some((tag) => typeof tag !== 'string' || tag.length > 25))) {
       throw new Error('Voyage permite hasta 10 etiquetas de un máximo de 25 caracteres.')
