@@ -90,7 +90,7 @@ export class VoyageCreatorClient {
 
   private async request<T>(
     path: string,
-    options: { method?: 'GET' | 'POST' | 'PUT' | 'PATCH'; body?: unknown; ifMatch?: string; idempotencyKey?: string } = {}
+    options: { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown; ifMatch?: string; idempotencyKey?: string } = {}
   ): Promise<VoyageHttpResponse<T>> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
@@ -151,6 +151,96 @@ export class VoyageCreatorClient {
     } finally {
       clearTimeout(timeout)
     }
+  }
+
+
+  async uploadAndModerateWorldCover(
+    shortId: string,
+    bytes: Uint8Array,
+    width: number,
+    height: number,
+    mimeType: 'image/png' | 'image/jpeg' | 'image/webp'
+  ): Promise<{ imageUrl: string }> {
+    if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
+    if (!(width > 0 && height > 0 && Number.isInteger(width) && Number.isInteger(height))) {
+      throw new Error('Las dimensiones de la imagen no son válidas.')
+    }
+    if (bytes.byteLength < 1 || bytes.byteLength > 5 * 1024 * 1024) {
+      throw new Error('La imagen debe ocupar entre 1 byte y 5 MiB.')
+    }
+
+    const allowanceResponse = await this.request<unknown>('/uploads', {
+      method: 'POST',
+      body: { height, mimeType, target: 'WORLD_COVER', width },
+      idempotencyKey: randomUUID()
+    })
+    const envelope = isRecord(allowanceResponse.data) ? allowanceResponse.data : null
+    const allowance = envelope && isRecord(envelope.data) ? envelope.data : null
+    if (!allowance || typeof allowance.uploadId !== 'string' ||
+      typeof allowance.directUploadUrl !== 'string' || typeof allowance.expiresAt !== 'string') {
+      throw new Error('Voyage devolvió una autorización de carga con formato inesperado.')
+    }
+
+    let signedUrl: URL
+    try { signedUrl = new URL(allowance.directUploadUrl) }
+    catch { throw new Error('Voyage devolvió una URL de carga no válida.') }
+    if (signedUrl.protocol !== 'https:') throw new Error('La URL firmada de carga no usa HTTPS; se canceló la transferencia.')
+    const expiresAt = Date.parse(allowance.expiresAt)
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      throw new Error('La autorización de carga ya expiró. Solicita una nueva antes de volver a intentarlo.')
+    }
+
+    const uploadController = new AbortController()
+    const uploadTimeout = setTimeout(() => uploadController.abort(), 30000)
+    try {
+      const uploadBuffer = new ArrayBuffer(bytes.byteLength)
+      new Uint8Array(uploadBuffer).set(bytes)
+      const uploadResponse = await fetch(signedUrl.toString(), {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: uploadBuffer,
+        signal: uploadController.signal
+      })
+      if (!uploadResponse.ok) {
+        throw new Error('El almacenamiento rechazó la transferencia de imagen (HTTP ' + uploadResponse.status + ').')
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('La transferencia de imagen agotó el tiempo de espera. La autorización puede seguir pendiente hasta expirar.')
+      }
+      throw error instanceof Error ? error : new Error('No se pudo transferir la imagen al almacenamiento.')
+    } finally {
+      clearTimeout(uploadTimeout)
+    }
+
+    let moderation: unknown
+    try {
+      const response = await this.request<unknown>(
+        `/worlds/${encodeURIComponent(shortId.trim())}/uploads/${encodeURIComponent(allowance.uploadId)}/moderate`,
+        {
+          method: 'POST',
+          body: { target: 'WORLD_COVER' },
+          idempotencyKey: randomUUID()
+        }
+      )
+      moderation = response.data
+    } catch (error) {
+      if (error instanceof VoyageApiError && error.details.status === 422 && error.details.code === 'studio_media_failed') {
+        try {
+          await this.request<unknown>(`/uploads/${encodeURIComponent(allowance.uploadId)}`, { method: 'DELETE' })
+        } catch {
+          throw new Error(error.message + ' La moderación rechazó la imagen, pero no se pudo limpiar el archivo temporal; puede requerir limpieza posterior.')
+        }
+      }
+      throw error
+    }
+
+    const resultEnvelope = isRecord(moderation) ? moderation : null
+    const resultData = resultEnvelope && isRecord(resultEnvelope.data) ? resultEnvelope.data : null
+    if (!resultData || resultData.success !== true || typeof resultData.imageUrl !== 'string') {
+      throw new Error('Voyage no devolvió una URL de imagen moderada válida. No se modificó el mundo.')
+    }
+    return { imageUrl: resultData.imageUrl }
   }
 
   async listMods(): Promise<unknown> {
