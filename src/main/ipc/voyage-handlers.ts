@@ -42,6 +42,8 @@ export function registerVoyageIpcHandlers(): void {
   ipcMain.removeHandler('voyage:list-revisions')
   ipcMain.removeHandler('voyage:read-revision')
   ipcMain.removeHandler('voyage:restore-revision')
+  ipcMain.removeHandler('voyage:create-world')
+  ipcMain.removeHandler('voyage:duplicate-world')
 
   ipcMain.handle('voyage:get-status', async () => {
     try {
@@ -93,6 +95,35 @@ export function registerVoyageIpcHandlers(): void {
 
       const result = await new VoyageCreatorClient(apiKey).testConnection()
       return { success: true, message: result.message }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:create-world', async (_event, payload: unknown) => {
+    try {
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Introduce los datos del nuevo mundo.')
+      const input = payload as Record<string, unknown>
+      if (typeof input.title !== 'string' || !input.title.trim()) throw new Error('El título del mundo es obligatorio.')
+      if (!input.initialGameState || typeof input.initialGameState !== 'object' || Array.isArray(input.initialGameState)) {
+        throw new Error('El GameState inicial debe ser un objeto JSON.')
+      }
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const created = await new VoyageCreatorClient(apiKey).createWorld(input as unknown as import('../services/voyage/client').CreateVoyageWorldInput)
+      return { success: true, created }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:duplicate-world', async (_event, shortId: unknown) => {
+    try {
+      if (typeof shortId !== 'string') throw new Error('Selecciona un mundo para duplicar.')
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const duplicated = await new VoyageCreatorClient(apiKey).duplicateWorld(shortId)
+      return { success: true, duplicated }
     } catch (error) {
       return { success: false, error: getErrorMessage(error) }
     }
