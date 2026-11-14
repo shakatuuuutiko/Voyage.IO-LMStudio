@@ -45,6 +45,31 @@ export function registerVoyageIpcHandlers(): void {
   ipcMain.removeHandler('voyage:create-world')
   ipcMain.removeHandler('voyage:duplicate-world')
   ipcMain.removeHandler('voyage:reorder-object-keys')
+  ipcMain.removeHandler('voyage:list-mods')
+  ipcMain.removeHandler('voyage:get-usage')
+
+
+  ipcMain.handle('voyage:list-mods', async () => {
+    try {
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const mods = await new VoyageCreatorClient(apiKey).listMods()
+      return { success: true, mods }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:get-usage', async () => {
+    try {
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const usage = await new VoyageCreatorClient(apiKey).getUsage()
+      return { success: true, usage }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
 
   ipcMain.handle('voyage:get-status', async () => {
     try {
