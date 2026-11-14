@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import type { EditableWorld, ReadWorldResult } from './types'
 
 export const VOYAGE_API_BASE_URL = 'https://api.aidungeon.com/creator/v1'
@@ -75,7 +76,7 @@ export class VoyageCreatorClient {
 
   private async request<T>(
     path: string,
-    options: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown; ifMatch?: string } = {}
+    options: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown; ifMatch?: string; idempotencyKey?: string } = {}
   ): Promise<VoyageHttpResponse<T>> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
@@ -87,6 +88,7 @@ export class VoyageCreatorClient {
           Authorization: `Bearer ${this.apiKey}`,
           Accept: 'application/json',
           ...(options.ifMatch ? { 'If-Match': options.ifMatch } : {}),
+          ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
           ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {})
         },
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -242,6 +244,44 @@ export class VoyageCreatorClient {
       throw new Error('La revisión descargada no contiene shortId e initialGameState válidos. No se modificó el borrador.')
     }
     return { shortId, initialGameState: candidate.initialGameState }
+  }
+
+  async restoreWorldRevision(
+    shortId: string,
+    revisionId: string
+  ): Promise<{ restored: true; world: EditableWorld | null; etag: string | null; refreshError?: string }> {
+    if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
+    if (!revisionId.trim() || revisionId.length > 256) throw new Error('El identificador de revisión no es válido.')
+
+    // Restore must use a fresh ETag from the live head, not the ETag from when the world was opened.
+    const current = await this.readWorld(shortId)
+    if (!current.etag) throw new Error('Voyage no devolvió un ETag actual. No se intentó restaurar la revisión.')
+
+    const response = await this.request<unknown>(
+      `/worlds/${encodeURIComponent(shortId.trim())}/revisions/${encodeURIComponent(revisionId.trim())}/restore`,
+      {
+        method: 'POST',
+        ifMatch: current.etag,
+        idempotencyKey: randomUUID()
+      }
+    )
+
+    // A successful restore creates a new live head. Re-read it before exposing the new state to the UI.
+    try {
+      const refreshed = await this.readWorld(shortId)
+      return {
+        restored: true,
+        world: refreshed.world,
+        etag: refreshed.etag || response.headers.get('ETag')
+      }
+    } catch (error) {
+      return {
+        restored: true,
+        world: null,
+        etag: response.headers.get('ETag'),
+        refreshError: error instanceof Error ? error.message : 'No se pudo volver a leer el mundo después de la restauración.'
+      }
+    }
   }
 
   async validateDraft(
