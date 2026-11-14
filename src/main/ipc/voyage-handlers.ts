@@ -39,6 +39,8 @@ export function registerVoyageIpcHandlers(): void {
   ipcMain.removeHandler('voyage:validate-draft')
   ipcMain.removeHandler('voyage:save-world')
   ipcMain.removeHandler('voyage:list-worlds')
+  ipcMain.removeHandler('voyage:list-revisions')
+  ipcMain.removeHandler('voyage:read-revision')
 
   ipcMain.handle('voyage:get-status', async () => {
     try {
@@ -101,6 +103,32 @@ export function registerVoyageIpcHandlers(): void {
       if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
       const worlds = await new VoyageCreatorClient(apiKey).listWorlds()
       return { success: true, worlds }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:list-revisions', async (_event, shortId: unknown) => {
+    try {
+      if (typeof shortId !== 'string') throw new Error('Introduce el identificador del mundo.')
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const revisions = await new VoyageCreatorClient(apiKey).listWorldRevisions(shortId)
+      return { success: true, revisions }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) }
+    }
+  })
+
+  ipcMain.handle('voyage:read-revision', async (_event, payload: { shortId: unknown; revisionId: unknown }) => {
+    try {
+      if (!payload || typeof payload.shortId !== 'string' || typeof payload.revisionId !== 'string') {
+        throw new Error('Se requieren los identificadores del mundo y de la revisión.')
+      }
+      const apiKey = await readVoyageApiKey()
+      if (!apiKey) throw new Error('Primero guarda tu API Key de Voyage.')
+      const revision = await new VoyageCreatorClient(apiKey).readWorldRevision(payload.shortId, payload.revisionId)
+      return { success: true, revision }
     } catch (error) {
       return { success: false, error: getErrorMessage(error) }
     }
