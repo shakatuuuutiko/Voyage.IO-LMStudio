@@ -403,8 +403,8 @@ function App(): React.JSX.Element {
     }
   }
 
-  async function loadVoyageWorlds(): Promise<void> {
-    if (worldListBusy) return
+  async function loadVoyageWorlds(): Promise<boolean> {
+    if (worldListBusy) return false
     setWorldListBusy(true)
     setWorldListOutput('')
     try {
@@ -432,8 +432,10 @@ function App(): React.JSX.Element {
       setWorldValidation(null)
       setWorldValidationError('')
       setWorldListOutput('')
+      return true
     } catch (error) {
       setWorldListOutput(error instanceof Error ? error.message : 'Error al consultar los mundos.')
+      return false
     } finally {
       setWorldListBusy(false)
     }
@@ -473,12 +475,10 @@ function App(): React.JSX.Element {
       setNewWorldDescription('')
       setNewWorldGameState('{}')
       setVoyageNotice('Voyage aceptó la creación del mundo. Actualizando la lista...')
-      try {
-        await loadVoyageWorlds()
-        setVoyageNotice('Mundo creado. Revisa la lista de mundos para abrirlo. No fue publicado.')
-      } catch {
-        setVoyageNotice('Voyage aceptó la creación, pero no se pudo actualizar la lista. Consulta tus mundos antes de repetir la operación.')
-      }
+      const refreshed = await loadVoyageWorlds()
+      setVoyageNotice(refreshed
+        ? 'Mundo creado. Revisa la lista de mundos para abrirlo. No fue publicado.'
+        : 'Voyage aceptó la creación, pero no se pudo actualizar la lista. Consulta tus mundos manualmente antes de repetir la operación.')
     } catch (error) {
       setVoyageNotice(
         (error instanceof Error ? error.message : 'No se pudo crear el mundo.') +
@@ -501,12 +501,10 @@ function App(): React.JSX.Element {
       const result = await window.api.voyage.duplicateWorld(world.shortId)
       if (!result.success) throw new Error(result.error || 'Voyage no confirmó la duplicación.')
       setVoyageNotice('Voyage aceptó la duplicación. Actualizando la lista...')
-      try {
-        await loadVoyageWorlds()
-        setVoyageNotice('Copia creada. Revisa la lista y abre el nuevo mundo. El original permanece intacto; la copia no fue publicada.')
-      } catch {
-        setVoyageNotice('Voyage aceptó la duplicación, pero no se pudo actualizar la lista. Consulta tus mundos antes de repetirla.')
-      }
+      const refreshed = await loadVoyageWorlds()
+      setVoyageNotice(refreshed
+        ? 'Copia creada. Revisa la lista y abre el nuevo mundo. El original permanece intacto; la copia no fue publicada.'
+        : 'Voyage aceptó la duplicación, pero no se pudo actualizar la lista. Consulta tus mundos manualmente antes de repetirla.')
     } catch (error) {
       setVoyageNotice(
         (error instanceof Error ? error.message : 'No se pudo duplicar el mundo.') +
@@ -1528,7 +1526,7 @@ function App(): React.JSX.Element {
               </select>
               <label htmlFor="new-world-state">GameState inicial (JSON)</label>
               <textarea id="new-world-state" className="world-create-json" value={newWorldGameState} onChange={(event) => setNewWorldGameState(event.target.value)} rows={4} spellCheck={false} />
-              <p className="helper">Se crea con el GameState indicado. Puedes comenzar con {} y completar el contenido después desde VoyAgent. La creación consume una operación de Creator API y no publica el mundo.</p>
+              <p className="helper">Se crea con el GameState indicado. Puedes comenzar con {'{}'} y completar el contenido después desde VoyAgent. La creación consume una operación de Creator API y no publica el mundo.</p>
               <button className="send-button" onClick={() => void createVoyageWorld()} disabled={worldMutationBusy || !voyageConfigured || !newWorldTitle.trim()}>
                 {worldMutationBusy ? 'Procesando...' : 'Crear mundo en Voyage'}
               </button>
