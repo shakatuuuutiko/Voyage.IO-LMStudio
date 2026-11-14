@@ -1516,9 +1516,9 @@ function App(): React.JSX.Element {
             <div className="world-create-panel">
               <div className="world-browser-heading"><strong>CREAR MUNDO</strong><span>Nuevo espacio independiente</span></div>
               <label htmlFor="new-world-title">Título</label>
-              <input id="new-world-title" value={newWorldTitle} onChange={(event) => setNewWorldTitle(event.target.value)} maxLength={256} placeholder="Nombre del mundo" />
+              <input id="new-world-title" value={newWorldTitle} onChange={(event) => setNewWorldTitle(event.target.value)} placeholder="Nombre del mundo" />
               <label htmlFor="new-world-description">Descripción (opcional)</label>
-              <textarea id="new-world-description" value={newWorldDescription} onChange={(event) => setNewWorldDescription(event.target.value)} rows={2} maxLength={5000} placeholder="Descripción breve" />
+              <textarea id="new-world-description" value={newWorldDescription} onChange={(event) => setNewWorldDescription(event.target.value)} rows={2} placeholder="Descripción breve" />
               <label htmlFor="new-world-visibility">Visibilidad inicial</label>
               <select id="new-world-visibility" value={newWorldVisibility} onChange={(event) => setNewWorldVisibility(event.target.value as 'private' | 'unlisted')}>
                 <option value="private">Privado</option>
