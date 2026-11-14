@@ -28,7 +28,7 @@ export function registerLocalWorkspaceHandlers(): void {
         throw new Error('Se requiere un identificador y un GameState válido.')
       }
       const index = await buildWorldIndex(payload.worldId, payload.gameState)
-      return { success: true, index: { schemaVersion: index.schemaVersion, worldId: index.worldId, generatedAt: index.generatedAt, nodeCount: index.nodeCount, complete: index.complete, rootKeys: index.rootKeys, relationshipCount: index.relationshipCount } }
+      return { success: true, index: { schemaVersion: index.schemaVersion, worldId: index.worldId, generatedAt: index.generatedAt, nodeCount: index.nodeCount, complete: index.complete, rootKeys: index.rootKeys, relationshipCount: index.relationshipCount, schemaDiagnostics: index.schemaDiagnostics } }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'No se pudo crear el índice.' }
     }
@@ -37,7 +37,7 @@ export function registerLocalWorkspaceHandlers(): void {
   ipcMain.handle('workspace:read-index', async (_event, worldId: string) => {
     try {
       const index = await readWorldIndex(worldId)
-      return { success: true, index: index ? { schemaVersion: index.schemaVersion, worldId: index.worldId, generatedAt: index.generatedAt, nodeCount: index.nodeCount, complete: index.complete, rootKeys: index.rootKeys, relationshipCount: index.relationshipCount } : null }
+      return { success: true, index: index ? { schemaVersion: index.schemaVersion, worldId: index.worldId, generatedAt: index.generatedAt, nodeCount: index.nodeCount, complete: index.complete, rootKeys: index.rootKeys, relationshipCount: index.relationshipCount, schemaDiagnostics: index.schemaDiagnostics } : null }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'No se pudo leer el índice.' }
     }
