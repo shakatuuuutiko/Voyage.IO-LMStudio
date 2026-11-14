@@ -428,7 +428,7 @@ function App(): React.JSX.Element {
   }
 
   async function loadVoyageWorlds(): Promise<boolean> {
-    if (worldListBusy || coverUploadBusy || itemImageUploadBusy) return false
+    if (worldListBusy || coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy) return false
     setWorldListBusy(true)
     setWorldListOutput('')
     try {
@@ -470,7 +470,7 @@ function App(): React.JSX.Element {
 
 
   async function uploadSelectedWorldCover(): Promise<void> {
-    if (!selectedWorldId || !selectedWorldDocument || coverUploadBusy || itemImageUploadBusy || worldReadBusy || worldValidationBusy) return
+    if (!selectedWorldId || !selectedWorldDocument || coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || worldReadBusy || worldValidationBusy) return
     if (!window.confirm('Se abrirá el selector de archivos para subir una portada a Voyage. La imagen se cargará y moderará, pero NO se guardará automáticamente en el mundo ni se publicará. La asignarás al documento local y después podrás guardarla con el flujo normal. ¿Continuar?')) return
     setCoverUploadBusy(true)
     setWorkspaceNotice('Selecciona una imagen PNG, JPG o WebP de hasta 5 MiB...')
@@ -703,7 +703,7 @@ function App(): React.JSX.Element {
   }
 
   async function openVoyageWorld(world: VoyageWorldSummary): Promise<void> {
-    if (worldReadBusy || coverUploadBusy || itemImageUploadBusy) return
+    if (worldReadBusy || coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy) return
     setWorldReadBusy(true)
     setSelectedWorldId(world.shortId)
     setSelectedWorldTitle(world.title)
@@ -814,7 +814,7 @@ function App(): React.JSX.Element {
   }
 
   async function restoreDraftSnapshot(snapshotId: string): Promise<void> {
-    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldId || snapshotBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || !selectedWorldId || snapshotBusy) return
     const confirmed = window.confirm('Se reemplazará el borrador que tienes actualmente en memoria por el snapshot seleccionado. Se conservará primero una copia del estado actual. No se modificará Voyage. ¿Continuar?')
     if (!confirmed) return
     setSnapshotBusy(true)
@@ -878,7 +878,7 @@ function App(): React.JSX.Element {
   }
 
   async function restoreRemoteRevisionInVoyage(): Promise<void> {
-    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldId || !remoteRevisionPreview || remoteRevisionBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || !selectedWorldId || !remoteRevisionPreview || remoteRevisionBusy) return
     const confirmed = window.confirm(
       'ATENCIÓN: se reemplazará el contenido activo de "' + selectedWorldTitle +
       '" por la revisión histórica seleccionada. Voyage creará una NUEVA revisión activa; no borra el historial ni publica el mundo. ' +
@@ -996,7 +996,7 @@ function App(): React.JSX.Element {
 
 
   async function reorderSelectedWorldObject(): Promise<void> {
-    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldId || !selectedWorldDraft || !selectedWorldInitialGameState || orderBusy || worldReadBusy || worldValidationBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || !selectedWorldId || !selectedWorldDraft || !selectedWorldInitialGameState || orderBusy || worldReadBusy || worldValidationBusy) return
     if (moderatedCoverUrl) {
       setWorkspaceNotice('Hay una portada moderada pendiente de guardar en el documento local. Guarda o descarta esa portada antes de reordenar claves remotas.')
       return
@@ -1072,7 +1072,7 @@ function App(): React.JSX.Element {
   }
 
   async function saveSelectedWorld(): Promise<void> {
-    if (coverUploadBusy || itemImageUploadBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy) return
     if (!selectedWorldId || !selectedWorldDocument || !selectedWorldDraft || !selectedWorldEtag) {
       setWorldValidationError('No se puede guardar: falta el documento original o su ETag. Vuelve a abrir el mundo.')
       return
@@ -1141,7 +1141,7 @@ function App(): React.JSX.Element {
   }
 
   async function validateSelectedWorld(): Promise<void> {
-    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldInitialGameState || worldValidationBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || !selectedWorldInitialGameState || worldValidationBusy) return
     setWorldValidationBusy(true)
     setWorldValidation(null)
     setWorldValidationError('')
@@ -1584,7 +1584,7 @@ function App(): React.JSX.Element {
   }
 
   async function discardDraftChanges(): Promise<void> {
-    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldInitialGameState) return
+    if (coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || !selectedWorldInitialGameState) return
     const restored = JSON.parse(JSON.stringify(selectedWorldInitialGameState)) as Record<string, unknown>
     try { await createDraftCheckpoint('before-restore', 'Copia anterior al reinicio') }
     catch (error) { setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot previo al reinicio.') }
@@ -1775,7 +1775,7 @@ function App(): React.JSX.Element {
               Eliminar API Key
             </button>
             {voyageNotice && <p className="helper" role="status">{voyageNotice}</p>}
-            <button className="secondary-button" onClick={() => void loadVoyageWorlds()} disabled={worldListBusy || coverUploadBusy || !voyageConfigured}>
+            <button className="secondary-button" onClick={() => void loadVoyageWorlds()} disabled={worldListBusy || coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || !voyageConfigured}>
               {worldListBusy ? 'Consultando mundos...' : 'Consultar mis mundos'}
             </button>
             {worldListOutput && <div className="world-list-inspector">
@@ -2098,7 +2098,7 @@ function App(): React.JSX.Element {
                           </div>
                           <p className="helper">Selecciona una imagen PNG, JPG o WebP de hasta 5 MiB. VoyAgent comprueba el archivo y sus dimensiones localmente, solicita una autorización temporal, transfiere los bytes y pide moderación a Voyage. La portada moderada se asigna al documento local; el guardado remoto sigue siendo una acción independiente.</p>
                           {moderatedCoverUrl && <img className="moderated-cover-preview" src={moderatedCoverUrl} alt="Vista previa de la portada moderada" />}
-                          <button className="secondary-button" onClick={() => void uploadSelectedWorldCover()} disabled={coverUploadBusy || itemImageUploadBusy || worldReadBusy || worldValidationBusy || !selectedWorldDocument || !voyageConfigured}>
+                          <button className="secondary-button" onClick={() => void uploadSelectedWorldCover()} disabled={coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || worldReadBusy || worldValidationBusy || !selectedWorldDocument || !voyageConfigured}>
                             {coverUploadBusy ? 'Subiendo y moderando...' : 'Seleccionar y moderar portada'}
                           </button>
                           <p className="helper">Límite documentado: 5 MiB. WORLD_COVER admite cualquier dimensión positiva. La moderación no modifica ni publica el mundo.</p>
@@ -2114,7 +2114,7 @@ function App(): React.JSX.Element {
                             id="item-image-key"
                             value={selectedItemImageKey}
                             onChange={(event) => setSelectedItemImageKey(event.target.value)}
-                            disabled={itemImageUploadBusy || !selectedWorldDraft || !isRecord(selectedWorldDraft.itemTypes)}
+                            disabled={itemImageUploadBusy || assetImageUploadBusy || !selectedWorldDraft || !isRecord(selectedWorldDraft.itemTypes)}
                           >
                             <option value="">Selecciona un objeto...</option>
                             {selectedWorldDraft && isRecord(selectedWorldDraft.itemTypes) &&
@@ -2132,7 +2132,7 @@ function App(): React.JSX.Element {
                               : <p className="helper">El objeto seleccionado no tiene imageUrl asignada.</p>
                           })()}
                           <button className="secondary-button" onClick={() => void uploadSelectedItemImage()} disabled={
-                            itemImageUploadBusy || coverUploadBusy || worldReadBusy || worldValidationBusy ||
+                            itemImageUploadBusy || assetImageUploadBusy || coverUploadBusy || worldReadBusy || worldValidationBusy ||
                             !selectedWorldDraft || !selectedItemImageKey || !isRecord(selectedWorldDraft.itemTypes) ||
                             !isRecord(selectedWorldDraft.itemTypes[selectedItemImageKey]) || !voyageConfigured
                           }>
@@ -2207,16 +2207,16 @@ function App(): React.JSX.Element {
                           })()}
                           {selectedWorldDraft && selectedWorldInitialGameState && JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState) &&
                             <p className="helper security-warning">Hay cambios locales pendientes. Debes guardarlos o descartarlos antes de usar el reordenamiento remoto.</p>}
-                          <button className="secondary-button" onClick={() => void reorderSelectedWorldObject()} disabled={orderBusy || worldReadBusy || worldValidationBusy || coverUploadBusy || itemImageUploadBusy || Boolean(moderatedCoverUrl) || !selectedWorldDraft || JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)}>
+                          <button className="secondary-button" onClick={() => void reorderSelectedWorldObject()} disabled={orderBusy || worldReadBusy || worldValidationBusy || coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || Boolean(moderatedCoverUrl) || !selectedWorldDraft || JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)}>
                             {orderBusy ? 'Reordenando en Voyage...' : 'Reordenar claves en Voyage'}
                           </button>
                           <p className="helper">Antes de la operación se guarda un checkpoint local. VoyAgent descarga un ETag nuevo, usa If-Match y vuelve a leer el documento. Si la respuesta queda incierta, invalida el ETag local para impedir reintentos con estado obsoleto.</p>
                         </div>
-                        <button className="secondary-button save-world-button" onClick={() => void saveSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || coverUploadBusy || itemImageUploadBusy || !selectedWorldDraft || !selectedWorldEtag || !worldValidation?.valid}>
+                        <button className="secondary-button save-world-button" onClick={() => void saveSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || !selectedWorldDraft || !selectedWorldEtag || !worldValidation?.valid}>
                           Guardar borrador remoto (requiere validación correcta)
                         </button>
                         <p className="helper">El guardado reemplaza el borrador de Creator Studio usando If-Match con el ETag descargado. Exige validación correcta y confirmación explícita. No publica el mundo.</p>
-                        <button className="secondary-button" onClick={() => void validateSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || coverUploadBusy || itemImageUploadBusy || !selectedWorldDraft}>
+                        <button className="secondary-button" onClick={() => void validateSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || coverUploadBusy || itemImageUploadBusy || assetImageUploadBusy || !selectedWorldDraft}>
                           {worldValidationBusy ? 'Validando borrador...' : 'Validar borrador (sin guardar)'}
                         </button>
                         {worldValidationError && <p className="helper security-warning" role="alert">{worldValidationError}</p>}
