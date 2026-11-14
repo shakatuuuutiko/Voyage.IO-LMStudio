@@ -233,7 +233,11 @@ export class VoyageCreatorClient {
     )
     const envelope = isRecord(response.data) ? response.data : null
     const data = envelope && isRecord(envelope.data) ? envelope.data : response.data
-    const candidate = isRecord(data) && isRecord(data.world) ? data.world : data
+    const candidate = isRecord(data) && isRecord(data.world)
+      ? data.world
+      : isRecord(data) && isRecord(data.revision)
+        ? data.revision
+        : data
     if (!isRecord(candidate) || candidate.shortId !== shortId || !isRecord(candidate.initialGameState)) {
       throw new Error('La revisión descargada no contiene shortId e initialGameState válidos. No se modificó el borrador.')
     }
