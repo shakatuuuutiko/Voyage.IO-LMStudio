@@ -9,6 +9,8 @@ Aplicación de escritorio para trabajar con mundos de Voyage Creator Studio usan
 - Índice local del GameState, recuperación por rutas y seguimiento de incidencias.
 - Propuestas de cambios con revisión individual, controles de tipo y validación antes de aplicar.
 - Los cambios se mantienen en un borrador local; guardar en Voyage y publicar son operaciones separadas.
+- Gestión de portadas de mundos e imágenes moderadas para objetos, con asignación al borrador local y guardado condicional independiente.
+- Consultas de mods y uso de Creator Studio en modo de solo lectura.
 
 ## Requisitos
 
