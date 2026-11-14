@@ -828,12 +828,13 @@ function App(): React.JSX.Element {
       setWorkspaceNotice('La ruta no apunta a un objeto JSON existente. No se admiten arrays ni valores escalares.')
       return
     }
+    const targetObject = target.value
     const keys = orderKeysInput.split(/\r?\n/).map((key) => key.trim()).filter(Boolean)
-    if (new Set(keys).size !== keys.length || keys.some((key) => !Object.prototype.hasOwnProperty.call(target.value, key))) {
+    if (new Set(keys).size !== keys.length || keys.some((key) => !Object.prototype.hasOwnProperty.call(targetObject, key))) {
       setWorkspaceNotice('Las claves deben ser únicas y existir en el objeto seleccionado.')
       return
     }
-    const currentKeys = Object.keys(target.value)
+    const currentKeys = Object.keys(targetObject)
     const previewKeys = [...keys, ...currentKeys.filter((key) => !keys.includes(key))]
     if (JSON.stringify(currentKeys) === JSON.stringify(previewKeys)) {
       setWorkspaceNotice('El orden solicitado ya coincide con el orden actual. No se envió ninguna solicitud.')
