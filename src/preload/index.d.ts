@@ -165,6 +165,8 @@ interface AppAPI {
     saveApiKey: (apiKey: string) => Promise<VoyageOperationResult>
     testConnection: () => Promise<VoyageOperationResult>
     listWorlds: () => Promise<{ success: boolean; worlds?: unknown; error?: string }>
+    createWorld: (payload: Record<string, unknown>) => Promise<{ success: boolean; created?: unknown; error?: string }>
+    duplicateWorld: (shortId: string) => Promise<{ success: boolean; duplicated?: unknown; error?: string }>
     readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
     listRevisions: (shortId: string) => Promise<{ success: boolean; revisions?: VoyageRevisionSummary[]; error?: string }>
     readRevision: (payload: { shortId: string; revisionId: string }) => Promise<{ success: boolean; revision?: VoyageRevisionDownload; error?: string }>
