@@ -90,7 +90,7 @@ export class VoyageCreatorClient {
 
   private async request<T>(
     path: string,
-    options: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown; ifMatch?: string; idempotencyKey?: string } = {}
+    options: { method?: 'GET' | 'POST' | 'PUT' | 'PATCH'; body?: unknown; ifMatch?: string; idempotencyKey?: string } = {}
   ): Promise<VoyageHttpResponse<T>> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30000)
@@ -185,6 +185,61 @@ export class VoyageCreatorClient {
       { method: 'POST', idempotencyKey: randomUUID() }
     )
     return response.data
+  }
+
+
+  async reorderWorldObjectKeys(
+    shortId: string,
+    path: string[],
+    keys: string[]
+  ): Promise<{ reordered: true; world: EditableWorld | null; etag: string | null; refreshError?: string }> {
+    if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
+    if (!Array.isArray(path) || path.length < 1 || path.length > 100 || path.some((segment) => typeof segment !== 'string')) {
+      throw new Error('La ruta debe ser un array JSON de entre 1 y 100 segmentos de texto.')
+    }
+    if (!Array.isArray(keys) || keys.some((key) => typeof key !== 'string') || new Set(keys).size !== keys.length) {
+      throw new Error('La lista de claves debe contener textos únicos.')
+    }
+
+    // Read the live head immediately before the mutation to obtain a fresh ETag.
+    const current = await this.readWorld(shortId)
+    if (!current.etag) throw new Error('Voyage no devolvió un ETag actual. No se intentó reordenar el objeto.')
+
+    let target: unknown = current.world.initialGameState
+    for (const segment of path) {
+      if (!isRecord(target) || !Object.prototype.hasOwnProperty.call(target, segment)) {
+        throw new Error('La ruta indicada no existe o atraviesa un valor que no es un objeto.')
+      }
+      target = target[segment]
+    }
+    if (!isRecord(target)) throw new Error('La ruta debe apuntar a un objeto JSON; los arrays y valores escalares no se pueden reordenar.')
+    const existingKeys = Object.keys(target)
+    if (keys.some((key) => !Object.prototype.hasOwnProperty.call(target, key))) {
+      throw new Error('La lista contiene claves que no existen en el objeto seleccionado.')
+    }
+    const integerKeys = keys.filter((key) => /^(0|[1-9]\d*)$/.test(key) && Number(key) <= 4294967294).map(Number)
+    if (integerKeys.some((key, index) => index > 0 && key < integerKeys[index - 1])) {
+      throw new Error('Las claves que son índices enteros deben conservar el orden numérico ascendente.')
+    }
+    if (existingKeys.length === 0) throw new Error('El objeto seleccionado está vacío y no tiene claves que reordenar.')
+
+    await this.request<unknown>(`/worlds/${encodeURIComponent(shortId.trim())}/order`, {
+      method: 'PATCH',
+      ifMatch: current.etag,
+      body: { path, keys }
+    })
+
+    try {
+      const refreshed = await this.readWorld(shortId)
+      return { reordered: true, world: refreshed.world, etag: refreshed.etag }
+    } catch (error) {
+      return {
+        reordered: true,
+        world: null,
+        etag: null,
+        refreshError: error instanceof Error ? error.message : 'No se pudo volver a leer el mundo después del reordenamiento.'
+      }
+    }
   }
 
   async testConnection(): Promise<VoyageConnectionResult> {
