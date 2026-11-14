@@ -215,7 +215,7 @@ export class VoyageCreatorClient {
     if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
     const response = await this.request<unknown>(`/worlds/${encodeURIComponent(shortId.trim())}/revisions`)
     const envelope = isRecord(response.data) ? response.data : null
-    const data = envelope && isRecord(envelope.data) ? envelope.data : response.data
+    const data = envelope && Object.prototype.hasOwnProperty.call(envelope, 'data') ? envelope.data : response.data
     const candidates = Array.isArray(data) ? data : isRecord(data) && Array.isArray(data.revisions) ? data.revisions : null
     if (!candidates) throw new Error('Voyage devolvió el historial con un formato inesperado. No se interpretó ni modificó ningún dato.')
     return candidates.flatMap((item) =>
