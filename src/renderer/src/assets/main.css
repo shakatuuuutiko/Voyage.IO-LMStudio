@@ -1148,3 +1148,13 @@ html, body, #root, .app-shell, .workspace {
   border-radius: 7px;
   background: #0e1118;
 }
+
+.item-image-upload-editor select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #363c4b;
+  border-radius: 5px;
+  color: #e8eaf0;
+  background: #11141b;
+  font-size: 11px;
+}
