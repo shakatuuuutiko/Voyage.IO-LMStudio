@@ -493,7 +493,7 @@ function App(): React.JSX.Element {
   }
 
   async function uploadSelectedItemImage(): Promise<void> {
-    if (!selectedWorldId || !selectedWorldDraft || itemImageUploadBusy || coverUploadBusy || worldReadBusy || worldValidationBusy) return
+    if (!selectedWorldId || !selectedWorldDraft || itemImageUploadBusy || assetImageUploadBusy || coverUploadBusy || worldReadBusy || worldValidationBusy) return
     const itemTypes = selectedWorldDraft.itemTypes
     if (!isRecord(itemTypes) || !selectedItemImageKey || !isRecord(itemTypes[selectedItemImageKey])) {
       setWorkspaceNotice('Selecciona un objeto existente dentro de initialGameState.itemTypes.')
