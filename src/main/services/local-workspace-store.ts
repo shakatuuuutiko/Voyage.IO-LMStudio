@@ -19,8 +19,17 @@ export interface WorldRelationship {
   kind: 'exact-name-reference'
 }
 
+export interface WorldSchemaDiagnostic {
+  code: string
+  severity: 'warning'
+  path: string
+  message: string
+  evidence: string
+  confidence: 'high'
+}
+
 export interface WorldIndex {
-  schemaVersion: 2
+  schemaVersion: 3
   worldId: string
   generatedAt: string
   nodeCount: number
@@ -29,6 +38,7 @@ export interface WorldIndex {
   nodes: WorldIndexNode[]
   relationships: WorldRelationship[]
   relationshipCount: number
+  schemaDiagnostics: WorldSchemaDiagnostic[]
 }
 
 export interface TrackedIssue {
@@ -170,8 +180,44 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
     }
   }
 
+  const schemaDiagnostics: WorldSchemaDiagnostic[] = []
+  const parties = gameState.parties
+  if (Object.prototype.hasOwnProperty.call(gameState, 'parties')) {
+    if (!parties || typeof parties !== 'object' || Array.isArray(parties)) {
+      schemaDiagnostics.push({
+        code: 'PARTIES_CONTAINER_INVALID', severity: 'warning', path: '/parties',
+        message: 'La guía de Creator API define parties como el contenedor de estado por partyId; se esperaba un objeto indexado por identificador.',
+        evidence: 'initialGameState.parties existe, pero no es un objeto.',
+        confidence: 'high'
+      })
+    } else {
+      for (const [partyId, partyState] of Object.entries(parties as Record<string, unknown>)) {
+        if (!partyState || typeof partyState !== 'object' || Array.isArray(partyState)) {
+          const escapedPartyId = partyId.replace(/~/g, '~0').replace(/\//g, '~1')
+          schemaDiagnostics.push({
+            code: 'PARTY_STATE_INVALID', severity: 'warning', path: '/parties/' + escapedPartyId,
+            message: 'El estado de cada grupo debe estar contenido en parties[partyId]; este registro no tiene una estructura de objeto.',
+            evidence: 'El valor del registro partyId es ' + kindOf(partyState) + '.',
+            confidence: 'high'
+          })
+        }
+      }
+    }
+  }
+
+  for (const key of ['quests', 'arcs', 'narrativeEvents']) {
+    if (Object.prototype.hasOwnProperty.call(gameState, key)) {
+      schemaDiagnostics.push({
+        code: 'PARTY_OWNED_DATA_AT_ROOT', severity: 'warning', path: '/' + key,
+        message: 'La guía de Creator API Preview 1.3 sitúa ' + key + ' dentro de parties[partyId], no en la raíz compartida del GameState. Comprueba si este contenido pertenece realmente a un grupo.',
+        evidence: 'Se encontró initialGameState.' + key + ' en la raíz.',
+        confidence: 'high'
+      })
+    }
+  }
+
   const index: WorldIndex = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     worldId: safeWorldId(worldId),
     generatedAt: new Date().toISOString(),
     nodeCount: nodes.length,
@@ -179,7 +225,8 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
     rootKeys: Object.keys(gameState),
     nodes,
     relationships,
-    relationshipCount: relationships.length
+    relationshipCount: relationships.length,
+    schemaDiagnostics
   }
 
   const directory = await workspaceDir(worldId)
@@ -190,7 +237,7 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
 export async function readWorldIndex(worldId: string): Promise<WorldIndex | null> {
   const directory = await workspaceDir(worldId)
   const index = await readJson<WorldIndex | null>(join(directory, 'world-index.json'), null)
-  return index?.schemaVersion === 2 && Array.isArray(index.relationships) ? index : null
+  return index?.schemaVersion === 3 && Array.isArray(index.relationships) && Array.isArray(index.schemaDiagnostics) ? index : null
 }
 
 export async function searchWorldIndex(worldId: string, query: string, limit = 60): Promise<WorldIndexNode[]> {
