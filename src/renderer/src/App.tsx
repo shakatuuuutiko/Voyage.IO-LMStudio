@@ -1342,7 +1342,11 @@ function App(): React.JSX.Element {
                             <p>{diagnostic.message}</p><p className="helper">Evidencia: {diagnostic.evidence}</p>
                           </article>)}
                         </div>}
-                        {worldIndex && worldIndex.schemaDiagnostics.length === 0 && <p className="helper">Integridad estructural: sin advertencias en las reglas canónicas comprobadas.</p>}
+                        {worldIndex && worldIndex.schemaDiagnostics.length === 0 && <div className="index-results">
+                          <strong>Integridad estructural local: sin advertencias</strong>
+                          <p className="helper">El índice no detectó problemas en las reglas estructurales locales comprobadas. Esto no equivale a una validación completa del esquema de Voyage.</p>
+                          {trackedIssues.filter((issue) => issue.source === 'voyage-validation' && issue.status !== 'resolved' && issue.status !== 'false-positive').length > 0 && <p className="helper">Voyage mantiene {trackedIssues.filter((issue) => issue.source === 'voyage-validation' && issue.status !== 'resolved' && issue.status !== 'false-positive').length} incidencia(s) de validación oficial abierta(s). Consulta el registro de problemas y ejecuta una nueva validación después de corregirlas.</p>}
+                        </div>}
                         {workspaceNotice && <p className="helper" role="status">{workspaceNotice}</p>}
                         <div className="index-search-row">
                           <input value={indexQuery} onChange={(event) => setIndexQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void searchWorldKnowledge() }} placeholder="Buscar facciones, NPCs, habilidades, términos..." />
