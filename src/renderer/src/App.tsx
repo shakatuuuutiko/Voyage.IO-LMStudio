@@ -740,7 +740,7 @@ function App(): React.JSX.Element {
   }
 
   async function restoreDraftSnapshot(snapshotId: string): Promise<void> {
-    if (!selectedWorldId || snapshotBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldId || snapshotBusy) return
     const confirmed = window.confirm('Se reemplazará el borrador que tienes actualmente en memoria por el snapshot seleccionado. Se conservará primero una copia del estado actual. No se modificará Voyage. ¿Continuar?')
     if (!confirmed) return
     setSnapshotBusy(true)
@@ -804,7 +804,7 @@ function App(): React.JSX.Element {
   }
 
   async function restoreRemoteRevisionInVoyage(): Promise<void> {
-    if (!selectedWorldId || !remoteRevisionPreview || remoteRevisionBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldId || !remoteRevisionPreview || remoteRevisionBusy) return
     const confirmed = window.confirm(
       'ATENCIÓN: se reemplazará el contenido activo de "' + selectedWorldTitle +
       '" por la revisión histórica seleccionada. Voyage creará una NUEVA revisión activa; no borra el historial ni publica el mundo. ' +
@@ -922,7 +922,7 @@ function App(): React.JSX.Element {
 
 
   async function reorderSelectedWorldObject(): Promise<void> {
-    if (!selectedWorldId || !selectedWorldDraft || !selectedWorldInitialGameState || orderBusy || worldReadBusy || worldValidationBusy) return
+    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldId || !selectedWorldDraft || !selectedWorldInitialGameState || orderBusy || worldReadBusy || worldValidationBusy) return
     if (moderatedCoverUrl) {
       setWorkspaceNotice('Hay una portada moderada pendiente de guardar en el documento local. Guarda o descarta esa portada antes de reordenar claves remotas.')
       return
@@ -1451,6 +1451,7 @@ function App(): React.JSX.Element {
   }
 
   async function applyProposalToDraft(): Promise<void> {
+    if (coverUploadBusy || itemImageUploadBusy) return
     const selectedChanges = proposalChanges.filter((change) => selectedProposalPaths.includes(JSON.stringify(change.path)))
     if (!selectedWorldDraft || selectedChanges.length === 0) {
       setProposalError('Selecciona al menos un cambio para aplicarlo al borrador local.')
@@ -1509,7 +1510,7 @@ function App(): React.JSX.Element {
   }
 
   async function discardDraftChanges(): Promise<void> {
-    if (!selectedWorldInitialGameState) return
+    if (coverUploadBusy || itemImageUploadBusy || !selectedWorldInitialGameState) return
     const restored = JSON.parse(JSON.stringify(selectedWorldInitialGameState)) as Record<string, unknown>
     try { await createDraftCheckpoint('before-restore', 'Copia anterior al reinicio') }
     catch (error) { setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot previo al reinicio.') }
