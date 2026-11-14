@@ -171,3 +171,8 @@ The proposal prompt also receives the documented ownership rules to reduce sugge
 ### Verification status
 
 Implementation is committed to the feature branch. Local Windows typecheck, build, and runtime verification are still required. Inspect any ownership warning against the actual world structure before changing data; a warning is evidence for review, not an automatic migration instruction.
+
+
+### Ausencia del contenedor de grupos
+
+El índice local schemaVersion 4 ahora emite `PARTIES_CONTAINER_MISSING` cuando falta `initialGameState.parties`. La guía Preview 1.3 establece que el estado de grupos y el contenido de quests/arcs/narrativeEvents se alojan bajo `parties[partyId]`. VoyAgent no crea automáticamente un objeto vacío ni inventa partyId: la estructura debe derivarse del mundo real y confirmarse con el validador oficial. La interfaz distingue explícitamente entre ausencia de advertencias estructurales locales y errores de validación oficial aún abiertos.
