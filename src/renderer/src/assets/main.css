@@ -179,6 +179,23 @@ button:disabled, select:disabled, textarea:disabled {
   background: #33394a;
 }
 
+.danger-button {
+  width: 100%;
+  padding: 9px;
+  margin-top: 10px;
+  border: 1px solid #75434b;
+  border-radius: 6px;
+  color: #f0b0b5;
+  background: #382329;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.danger-button:hover {
+  background: #4a2b33;
+}
+
+
 .helper {
   margin-top: 10px;
   color: #858da0;
