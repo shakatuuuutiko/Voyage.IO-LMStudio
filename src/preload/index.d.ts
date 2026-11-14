@@ -30,6 +30,16 @@ interface VoyageWorld {
   [key: string]: unknown
 }
 
+interface VoyageRevisionSummary {
+  id: string
+  createdAt: string
+}
+
+interface VoyageRevisionDownload {
+  shortId: string
+  initialGameState: Record<string, unknown>
+}
+
 interface VoyageWorldReadResult {
   success: boolean
   world?: VoyageWorld
@@ -156,6 +166,8 @@ interface AppAPI {
     testConnection: () => Promise<VoyageOperationResult>
     listWorlds: () => Promise<{ success: boolean; worlds?: unknown; error?: string }>
     readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
+    listRevisions: (shortId: string) => Promise<{ success: boolean; revisions?: VoyageRevisionSummary[]; error?: string }>
+    readRevision: (payload: { shortId: string; revisionId: string }) => Promise<{ success: boolean; revision?: VoyageRevisionDownload; error?: string }>
     validateDraft: (initialGameState: Record<string, unknown>) => Promise<VoyageDraftValidationResult>
     saveWorld: (payload: { shortId: string; etag: string; world: Record<string, unknown> }) => Promise<{ success: boolean; saved?: boolean; world?: VoyageWorld | null; etag?: string | null; refreshError?: string; error?: string }>
     clearApiKey: () => Promise<VoyageOperationResult>
