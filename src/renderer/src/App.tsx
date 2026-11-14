@@ -684,7 +684,8 @@ function App(): React.JSX.Element {
       }
       await window.api.workspace.recordIssue({
         worldId: selectedWorldId, source: 'application', severity: 'error',
-        code: 'VOYAGE_REVISION_RESTORE_FAILURE', message, path: ''
+        code: remoteRestoreConfirmed ? 'VOYAGE_REVISION_RESTORE_POSTPROCESS_FAILURE' : 'VOYAGE_REVISION_RESTORE_FAILURE',
+        message, path: ''
       }).catch(() => undefined)
       const issueResult = await window.api.workspace.listIssues(selectedWorldId)
       if (issueResult.success) setTrackedIssues(issueResult.issues)
