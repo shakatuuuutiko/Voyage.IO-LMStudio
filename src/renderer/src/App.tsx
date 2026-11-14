@@ -266,6 +266,10 @@ function App(): React.JSX.Element {
   const [voyageNotice, setVoyageNotice] = useState('')
   const [worldListBusy, setWorldListBusy] = useState(false)
   const [worldListOutput, setWorldListOutput] = useState('')
+  const [modsBusy, setModsBusy] = useState(false)
+  const [modsOutput, setModsOutput] = useState('')
+  const [usageBusy, setUsageBusy] = useState(false)
+  const [usageOutput, setUsageOutput] = useState('')
   const [voyageWorlds, setVoyageWorlds] = useState<VoyageWorldSummary[]>([])
   const [worldTotalCount, setWorldTotalCount] = useState(0)
   const [worldMutationBusy, setWorldMutationBusy] = useState(false)
@@ -441,6 +445,37 @@ function App(): React.JSX.Element {
       return false
     } finally {
       setWorldListBusy(false)
+    }
+  }
+
+
+  async function loadVoyageMods(): Promise<void> {
+    if (modsBusy || !voyageConfigured) return
+    setModsBusy(true)
+    setModsOutput('')
+    try {
+      const result = await window.api.voyage.listMods()
+      if (!result.success) throw new Error(result.error || 'No se pudo consultar la lista de mods.')
+      setModsOutput(JSON.stringify(result.mods, null, 2) ?? String(result.mods))
+    } catch (error) {
+      setModsOutput(error instanceof Error ? error.message : 'Error al consultar los mods.')
+    } finally {
+      setModsBusy(false)
+    }
+  }
+
+  async function loadVoyageUsage(): Promise<void> {
+    if (usageBusy || !voyageConfigured) return
+    setUsageBusy(true)
+    setUsageOutput('')
+    try {
+      const result = await window.api.voyage.getUsage()
+      if (!result.success) throw new Error(result.error || 'No se pudo consultar el uso de Creator Studio.')
+      setUsageOutput(JSON.stringify(result.usage, null, 2) ?? String(result.usage))
+    } catch (error) {
+      setUsageOutput(error instanceof Error ? error.message : 'Error al consultar el uso de Creator Studio.')
+    } finally {
+      setUsageBusy(false)
     }
   }
 
@@ -1589,6 +1624,20 @@ function App(): React.JSX.Element {
               <div className="helper">RESULTADO DE LA CONSULTA</div>
               <pre>{worldListOutput}</pre>
             </div>}
+
+            <div className="world-create-panel voyage-account-tools">
+              <div className="world-browser-heading"><strong>MODS Y LÍMITES DE USO</strong><span>CONSULTAS DE SOLO LECTURA</span></div>
+              <p className="helper">La Creator API permite consultar los mods propios, guardados, pendientes y fuentes de remix. También permite consultar el uso de IA de Creator Studio. El contrato no expone operaciones para instalar, activar o eliminar mods desde esta aplicación.</p>
+              <button className="secondary-button" onClick={() => void loadVoyageMods()} disabled={modsBusy || !voyageConfigured}>
+                {modsBusy ? 'Consultando mods...' : 'Consultar mods disponibles'}
+              </button>
+              {modsOutput && <div className="world-list-inspector"><div className="helper">RESPUESTA ORIGINAL DE /mods</div><pre>{modsOutput}</pre></div>}
+              <button className="secondary-button" onClick={() => void loadVoyageUsage()} disabled={usageBusy || !voyageConfigured}>
+                {usageBusy ? 'Consultando límites...' : 'Consultar uso y límites de IA'}
+              </button>
+              {usageOutput && <div className="world-list-inspector"><div className="helper">RESPUESTA ORIGINAL DE /usage</div><pre>{usageOutput}</pre></div>}
+              <p className="helper">Voyage no documenta todavía un esquema de respuesta detallado para estos dos endpoints en OpenAPI. Por eso se conserva y muestra el JSON recibido sin inventar campos ni interpretar cuotas.</p>
+            </div>
             <div className="world-create-panel">
               <div className="world-browser-heading"><strong>CREAR MUNDO</strong><span>Nuevo espacio independiente</span></div>
               <label htmlFor="new-world-title">Título</label>
