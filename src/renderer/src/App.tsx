@@ -270,6 +270,8 @@ function App(): React.JSX.Element {
   const [modsOutput, setModsOutput] = useState('')
   const [usageBusy, setUsageBusy] = useState(false)
   const [usageOutput, setUsageOutput] = useState('')
+  const [coverUploadBusy, setCoverUploadBusy] = useState(false)
+  const [moderatedCoverUrl, setModeratedCoverUrl] = useState('')
   const [voyageWorlds, setVoyageWorlds] = useState<VoyageWorldSummary[]>([])
   const [worldTotalCount, setWorldTotalCount] = useState(0)
   const [worldMutationBusy, setWorldMutationBusy] = useState(false)
@@ -425,6 +427,7 @@ function App(): React.JSX.Element {
       setSelectedWorldEtag(null)
       setSelectedWorldDocument(null)
       setSelectedWorldJson('')
+      setModeratedCoverUrl('')
       setSelectedWorldInitialGameState(null)
       setSelectedWorldDraft(null)
       setDraftSnapshots([])
@@ -448,6 +451,30 @@ function App(): React.JSX.Element {
     }
   }
 
+
+
+  async function uploadSelectedWorldCover(): Promise<void> {
+    if (!selectedWorldId || !selectedWorldDocument || coverUploadBusy || worldReadBusy || worldValidationBusy) return
+    if (!window.confirm('Se abrirá el selector de archivos para subir una portada a Voyage. La imagen se cargará y moderará, pero NO se guardará automáticamente en el mundo ni se publicará. La asignarás al documento local y después podrás guardarla con el flujo normal. ¿Continuar?')) return
+    setCoverUploadBusy(true)
+    setWorkspaceNotice('Selecciona una imagen PNG, JPG o WebP de hasta 5 MiB...')
+    try {
+      const result = await window.api.voyage.uploadWorldCover(selectedWorldId)
+      if (result.cancelled) {
+        setWorkspaceNotice('Selección de portada cancelada. No se realizó ninguna carga.')
+        return
+      }
+      if (!result.imageUrl) throw new Error(result.error || 'Voyage no devolvió una imagen moderada.')
+      setSelectedWorldDocument((current) => current ? { ...current, image: result.imageUrl } : current)
+      setModeratedCoverUrl(result.imageUrl)
+      setWorldValidationError('')
+      setWorkspaceNotice('Imagen subida y moderada correctamente (' + result.width + '×' + result.height + ', ' + ((result.bytes || 0) / 1024).toFixed(1) + ' KiB). La portada está asignada solo al documento local. Ejecuta el guardado remoto cuando quieras aplicarla.')
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo subir y moderar la portada.')
+    } finally {
+      setCoverUploadBusy(false)
+    }
+  }
 
   async function loadVoyageMods(): Promise<void> {
     if (modsBusy || !voyageConfigured) return
@@ -1932,6 +1959,19 @@ function App(): React.JSX.Element {
                           </div>
                         )}
 
+
+                        <div className="proposal-editor cover-upload-editor">
+                          <div className="world-browser-heading">
+                            <strong>PORTADA DEL MUNDO</strong>
+                            <span>SUBIDA DIRECTA + MODERACIÓN</span>
+                          </div>
+                          <p className="helper">Selecciona una imagen PNG, JPG o WebP de hasta 5 MiB. VoyAgent comprueba el archivo y sus dimensiones localmente, solicita una autorización temporal, transfiere los bytes y pide moderación a Voyage. La portada moderada se asigna al documento local; el guardado remoto sigue siendo una acción independiente.</p>
+                          {moderatedCoverUrl && <img className="moderated-cover-preview" src={moderatedCoverUrl} alt="Vista previa de la portada moderada" />}
+                          <button className="secondary-button" onClick={() => void uploadSelectedWorldCover()} disabled={coverUploadBusy || worldReadBusy || worldValidationBusy || !selectedWorldDocument || !voyageConfigured}>
+                            {coverUploadBusy ? 'Subiendo y moderando...' : 'Seleccionar y moderar portada'}
+                          </button>
+                          <p className="helper">Límite documentado: 5 MiB. WORLD_COVER admite cualquier dimensión positiva. La moderación no modifica ni publica el mundo.</p>
+                        </div>
                         <div className="proposal-editor key-order-editor">
                           <div className="world-browser-heading">
                             <strong>ORDEN DE CLAVES JSON</strong>
