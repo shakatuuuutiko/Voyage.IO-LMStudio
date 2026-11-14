@@ -457,7 +457,7 @@ function App(): React.JSX.Element {
 
 
   async function uploadSelectedWorldCover(): Promise<void> {
-    if (!selectedWorldId || !selectedWorldDocument || coverUploadBusy || worldReadBusy || worldValidationBusy) return
+    if (!selectedWorldId || !selectedWorldDocument || coverUploadBusy || itemImageUploadBusy || worldReadBusy || worldValidationBusy) return
     if (!window.confirm('Se abrirá el selector de archivos para subir una portada a Voyage. La imagen se cargará y moderará, pero NO se guardará automáticamente en el mundo ni se publicará. La asignarás al documento local y después podrás guardarla con el flujo normal. ¿Continuar?')) return
     setCoverUploadBusy(true)
     setWorkspaceNotice('Selecciona una imagen PNG, JPG o WebP de hasta 5 MiB...')
@@ -2028,7 +2028,7 @@ function App(): React.JSX.Element {
                           </div>
                           <p className="helper">Selecciona una imagen PNG, JPG o WebP de hasta 5 MiB. VoyAgent comprueba el archivo y sus dimensiones localmente, solicita una autorización temporal, transfiere los bytes y pide moderación a Voyage. La portada moderada se asigna al documento local; el guardado remoto sigue siendo una acción independiente.</p>
                           {moderatedCoverUrl && <img className="moderated-cover-preview" src={moderatedCoverUrl} alt="Vista previa de la portada moderada" />}
-                          <button className="secondary-button" onClick={() => void uploadSelectedWorldCover()} disabled={coverUploadBusy || worldReadBusy || worldValidationBusy || !selectedWorldDocument || !voyageConfigured}>
+                          <button className="secondary-button" onClick={() => void uploadSelectedWorldCover()} disabled={coverUploadBusy || itemImageUploadBusy || worldReadBusy || worldValidationBusy || !selectedWorldDocument || !voyageConfigured}>
                             {coverUploadBusy ? 'Subiendo y moderando...' : 'Seleccionar y moderar portada'}
                           </button>
                           <p className="helper">Límite documentado: 5 MiB. WORLD_COVER admite cualquier dimensión positiva. La moderación no modifica ni publica el mundo.</p>
