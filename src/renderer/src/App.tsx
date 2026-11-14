@@ -620,6 +620,7 @@ function App(): React.JSX.Element {
     setWorkspaceNotice('Restaurando la revisión histórica en Voyage...')
     setWorldValidation(null)
     setWorldValidationError('')
+    let remoteRestoreConfirmed = false
     try {
       if (selectedWorldDraft) {
         await createDraftCheckpoint('before-restore', 'Copia local previa a restauración remota')
@@ -631,6 +632,7 @@ function App(): React.JSX.Element {
       if (!result.success || !result.restored) {
         throw new Error(result.error || 'Voyage no confirmó la restauración.')
       }
+      remoteRestoreConfirmed = true
 
       if (!result.world || !isRecord(result.world.initialGameState)) {
         setSelectedWorldEtag(null)
@@ -666,13 +668,20 @@ function App(): React.JSX.Element {
       setWorkspaceNotice('Revisión histórica restaurada en Voyage como nueva revisión activa. El estado se volvió a leer y el índice local se actualizó. El mundo NO fue publicado.')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo restaurar la revisión remota.'
-      // The outcome may be uncertain after a network failure; force a fresh read before any later save.
-      setSelectedWorldEtag(null)
-      setSelectedWorldDocument(null)
-      setSelectedWorldJson('')
-      setWorkspaceNotice(
-        message + ' Vuelve a abrir el mundo para comprobar el estado actual antes de guardar o repetir la restauración.'
-      )
+      if (remoteRestoreConfirmed) {
+        setWorkspaceNotice(
+          'Voyage confirmó la restauración, pero falló una actualización local posterior: ' + message +
+          ' El contenido remoto ya fue restaurado; vuelve a abrir el mundo para sincronizar la interfaz.'
+        )
+      } else {
+        // The outcome may be uncertain after a network failure; force a fresh read before any later save.
+        setSelectedWorldEtag(null)
+        setSelectedWorldDocument(null)
+        setSelectedWorldJson('')
+        setWorkspaceNotice(
+          message + ' Vuelve a abrir el mundo para comprobar el estado actual antes de guardar o repetir la restauración.'
+        )
+      }
       await window.api.workspace.recordIssue({
         worldId: selectedWorldId, source: 'application', severity: 'error',
         code: 'VOYAGE_REVISION_RESTORE_FAILURE', message, path: ''
