@@ -607,6 +607,79 @@ function App(): React.JSX.Element {
     }
   }
 
+  async function restoreRemoteRevisionInVoyage(): Promise<void> {
+    if (!selectedWorldId || !remoteRevisionPreview || remoteRevisionBusy) return
+    const confirmed = window.confirm(
+      'ATENCIÓN: se reemplazará el contenido activo de "' + selectedWorldTitle +
+      '" por la revisión histórica seleccionada. Voyage creará una NUEVA revisión activa; no borra el historial ni publica el mundo. ' +
+      'La operación afecta al servidor y no se puede deshacer automáticamente. ¿Restaurar esta revisión en Voyage?'
+    )
+    if (!confirmed) return
+
+    setRemoteRevisionBusy(true)
+    setWorkspaceNotice('Restaurando la revisión histórica en Voyage...')
+    setWorldValidation(null)
+    setWorldValidationError('')
+    try {
+      if (selectedWorldDraft) {
+        await createDraftCheckpoint('before-restore', 'Copia local previa a restauración remota')
+      }
+      const result = await window.api.voyage.restoreRevision({
+        shortId: selectedWorldId,
+        revisionId: remoteRevisionPreview.id
+      })
+      if (!result.success || !result.restored) {
+        throw new Error(result.error || 'Voyage no confirmó la restauración.')
+      }
+
+      if (!result.world || !isRecord(result.world.initialGameState)) {
+        setSelectedWorldEtag(null)
+        setSelectedWorldDocument(null)
+        setWorldValidation(null)
+        setWorkspaceNotice(
+          'Voyage confirmó la restauración, pero no se pudo volver a leer el mundo. No intentes otra restauración todavía. ' +
+          (result.refreshError || 'Cierra y vuelve a abrir el mundo para comprobar el estado actual.')
+        )
+        return
+      }
+
+      const refreshedDocument = JSON.parse(JSON.stringify(result.world)) as Record<string, unknown>
+      const refreshedState = JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>
+      setSelectedWorldDocument(refreshedDocument)
+      setSelectedWorldInitialGameState(refreshedState)
+      setSelectedWorldDraft(JSON.parse(JSON.stringify(refreshedState)) as Record<string, unknown>)
+      setSelectedWorldJson('')
+      setSelectedWorldEtag(result.etag ?? null)
+      setWorldValidation(null)
+      setWorldValidationError('')
+      setProposalChanges([])
+      setSelectedProposalPaths([])
+      setProposalSuggestions([])
+      setProposalIssueId(null)
+      setProposalError('')
+      const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: refreshedState })
+      if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+      await createDraftCheckpoint('remote-saved', 'Estado confirmado tras restauración remota', refreshedState)
+        .catch((error) => setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot posterior a la restauración.'))
+      await refreshDraftSnapshots(selectedWorldId)
+      setRemoteRevisionPreview(null)
+      setWorkspaceNotice('Revisión histórica restaurada en Voyage como nueva revisión activa. El estado se volvió a leer y el índice local se actualizó. El mundo NO fue publicado.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo restaurar la revisión remota.'
+      setWorkspaceNotice(
+        message + ' Si hubo un timeout o se perdió la conexión, vuelve a abrir el mundo para comprobar si Voyage llegó a aplicar la operación antes de intentarla otra vez.'
+      )
+      await window.api.workspace.recordIssue({
+        worldId: selectedWorldId, source: 'application', severity: 'error',
+        code: 'VOYAGE_REVISION_RESTORE_FAILURE', message, path: ''
+      }).catch(() => undefined)
+      const issueResult = await window.api.workspace.listIssues(selectedWorldId)
+      if (issueResult.success) setTrackedIssues(issueResult.issues)
+    } finally {
+      setRemoteRevisionBusy(false)
+    }
+  }
+
   async function copyRemoteRevisionToLocalDraft(): Promise<void> {
     if (!selectedWorldId || !selectedWorldDraft || !remoteRevisionPreview || remoteRevisionBusy) return
     const confirmed = window.confirm('Se reemplazará el borrador local en memoria por el contenido de esta revisión remota. Se guardará antes un checkpoint local. Esto NO restaura ni guarda nada en Voyage. ¿Continuar?')
@@ -1473,7 +1546,7 @@ function App(): React.JSX.Element {
                           <strong>HISTORIAL REMOTO DE VOYAGE</strong>
                           <span>{remoteRevisions.length} REVISIONES</span>
                         </div>
-                        <p className="helper">Revisiones guardadas por Voyage Creator Studio. Se consultan bajo demanda. Descargar o importar una revisión solo afecta al borrador local; la restauración remota todavía no está habilitada en esta interfaz.</p>
+                        <p className="helper">Revisiones guardadas por Voyage Creator Studio. Descargar o importar solo afecta al borrador local. La restauración remota crea una nueva revisión activa en Voyage, conserva los metadatos y no publica el mundo; requiere confirmación independiente.</p>
                         <button className="secondary-button" onClick={() => void loadRemoteRevisions()} disabled={remoteRevisionBusy || !selectedWorldId}>
                           {remoteRevisionBusy ? 'Consultando...' : 'Consultar revisiones remotas'}
                         </button>
@@ -1494,6 +1567,7 @@ function App(): React.JSX.Element {
                           {remoteRevisionComparison.length === 0 && <p className="helper">La revisión y el borrador local no presentan diferencias detectables.</p>}
                           <div className="issue-actions">
                             <button className="secondary-button" onClick={() => void copyRemoteRevisionToLocalDraft()} disabled={remoteRevisionBusy}>Importar al borrador local</button>
+                            <button className="danger-button" onClick={() => void restoreRemoteRevisionInVoyage()} disabled={remoteRevisionBusy}>Restaurar en Voyage (remoto)</button>
                             <button className="secondary-button" onClick={() => setRemoteRevisionPreview(null)}>Cerrar comparación</button>
                           </div>
                         </div>}
