@@ -29,7 +29,7 @@ export interface WorldSchemaDiagnostic {
 }
 
 export interface WorldIndex {
-  schemaVersion: 3
+  schemaVersion: 4
   worldId: string
   generatedAt: string
   nodeCount: number
@@ -182,7 +182,14 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
 
   const schemaDiagnostics: WorldSchemaDiagnostic[] = []
   const parties = gameState.parties
-  if (Object.prototype.hasOwnProperty.call(gameState, 'parties')) {
+  if (!Object.prototype.hasOwnProperty.call(gameState, 'parties')) {
+    schemaDiagnostics.push({
+      code: 'PARTIES_CONTAINER_MISSING', severity: 'warning', path: '/parties',
+      message: 'Creator API Preview 1.3 exige el contenedor canónico parties para alojar el estado de cada partyId. No se crea automáticamente porque no se deben inventar identificadores ni estados de grupo.',
+      evidence: 'initialGameState no contiene la propiedad parties.',
+      confidence: 'high'
+    })
+  } else {
     if (!parties || typeof parties !== 'object' || Array.isArray(parties)) {
       schemaDiagnostics.push({
         code: 'PARTIES_CONTAINER_INVALID', severity: 'warning', path: '/parties',
@@ -237,7 +244,7 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
 export async function readWorldIndex(worldId: string): Promise<WorldIndex | null> {
   const directory = await workspaceDir(worldId)
   const index = await readJson<WorldIndex | null>(join(directory, 'world-index.json'), null)
-  return index?.schemaVersion === 3 && Array.isArray(index.relationships) && Array.isArray(index.schemaDiagnostics) ? index : null
+  return index?.schemaVersion === 4 && Array.isArray(index.relationships) && Array.isArray(index.schemaDiagnostics) ? index : null
 }
 
 export async function searchWorldIndex(worldId: string, query: string, limit = 60): Promise<WorldIndexNode[]> {
