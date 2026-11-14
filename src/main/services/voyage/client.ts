@@ -213,8 +213,9 @@ export class VoyageCreatorClient {
       target = target[segment]
     }
     if (!isRecord(target)) throw new Error('La ruta debe apuntar a un objeto JSON; los arrays y valores escalares no se pueden reordenar.')
-    const existingKeys = Object.keys(target)
-    if (keys.some((key) => !Object.prototype.hasOwnProperty.call(target, key))) {
+    const targetObject = target
+    const existingKeys = Object.keys(targetObject)
+    if (keys.some((key) => !Object.prototype.hasOwnProperty.call(targetObject, key))) {
       throw new Error('La lista contiene claves que no existen en el objeto seleccionado.')
     }
     const integerKeys = keys.filter((key) => /^(0|[1-9]\d*)$/.test(key) && Number(key) <= 4294967294).map(Number)
