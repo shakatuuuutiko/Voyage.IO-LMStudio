@@ -271,6 +271,8 @@ function App(): React.JSX.Element {
   const [usageBusy, setUsageBusy] = useState(false)
   const [usageOutput, setUsageOutput] = useState('')
   const [coverUploadBusy, setCoverUploadBusy] = useState(false)
+  const [itemImageUploadBusy, setItemImageUploadBusy] = useState(false)
+  const [selectedItemImageKey, setSelectedItemImageKey] = useState('')
   const [moderatedCoverUrl, setModeratedCoverUrl] = useState('')
   const [voyageWorlds, setVoyageWorlds] = useState<VoyageWorldSummary[]>([])
   const [worldTotalCount, setWorldTotalCount] = useState(0)
@@ -428,6 +430,7 @@ function App(): React.JSX.Element {
       setSelectedWorldDocument(null)
       setSelectedWorldJson('')
       setModeratedCoverUrl('')
+      setSelectedItemImageKey('')
       setSelectedWorldInitialGameState(null)
       setSelectedWorldDraft(null)
       setDraftSnapshots([])
@@ -473,6 +476,51 @@ function App(): React.JSX.Element {
       setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo subir y moderar la portada.')
     } finally {
       setCoverUploadBusy(false)
+    }
+  }
+
+  async function uploadSelectedItemImage(): Promise<void> {
+    if (!selectedWorldId || !selectedWorldDraft || itemImageUploadBusy || coverUploadBusy || worldReadBusy || worldValidationBusy) return
+    const itemTypes = selectedWorldDraft.itemTypes
+    if (!isRecord(itemTypes) || !selectedItemImageKey || !isRecord(itemTypes[selectedItemImageKey])) {
+      setWorkspaceNotice('Selecciona un objeto existente dentro de initialGameState.itemTypes.')
+      return
+    }
+    if (!window.confirm(
+      'Se subirá una imagen para "' + selectedItemImageKey +
+      '" con el destino ITEM_IMAGE. Voyage la moderará; después se asignará imageUrl únicamente al borrador local. No se guardará ni publicará automáticamente. ¿Continuar?'
+    )) return
+
+    setItemImageUploadBusy(true)
+    setWorkspaceNotice('Selecciona una imagen de objeto PNG, JPG o WebP de al menos 600 × 600 píxeles y hasta 5 MiB...')
+    try {
+      await createDraftCheckpoint('manual-checkpoint', 'Antes de asignar imagen a ' + selectedItemImageKey)
+      const result = await window.api.voyage.uploadItemImage({
+        shortId: selectedWorldId,
+        itemKey: selectedItemImageKey
+      })
+      if (result.cancelled) {
+        setWorkspaceNotice('Selección de imagen cancelada. No se realizó ninguna carga.')
+        return
+      }
+      if (!result.imageUrl) throw new Error(result.error || 'Voyage no devolvió una imagen moderada.')
+      const next = writePath(selectedWorldDraft, ['itemTypes', selectedItemImageKey, 'imageUrl'], result.imageUrl)
+      setSelectedWorldDraft(next)
+      setWorldValidation(null)
+      setWorldValidationError('')
+      const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: next })
+      if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+      await createDraftCheckpoint('manual-checkpoint', 'Imagen moderada asignada a ' + selectedItemImageKey, next)
+      await refreshDraftSnapshots(selectedWorldId)
+      setWorkspaceNotice(
+        'Imagen moderada (' + result.width + '×' + result.height + ', ' +
+        ((result.bytes || 0) / 1024).toFixed(1) + ' KiB) asignada a itemTypes.' +
+        selectedItemImageKey + '.imageUrl únicamente en el borrador local. Valida y guarda cuando quieras.'
+      )
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo subir y moderar la imagen del objeto.')
+    } finally {
+      setItemImageUploadBusy(false)
     }
   }
 
@@ -581,7 +629,7 @@ function App(): React.JSX.Element {
   }
 
   async function openVoyageWorld(world: VoyageWorldSummary): Promise<void> {
-    if (worldReadBusy || coverUploadBusy) return
+    if (worldReadBusy || coverUploadBusy || itemImageUploadBusy) return
     setWorldReadBusy(true)
     setSelectedWorldId(world.shortId)
     setSelectedWorldTitle(world.title)
@@ -589,6 +637,7 @@ function App(): React.JSX.Element {
     setSelectedWorldDocument(null)
     setSelectedWorldJson('')
     setModeratedCoverUrl('')
+    setSelectedItemImageKey('')
     setSelectedWorldInitialGameState(null)
     setSelectedWorldDraft(null)
     setWorldIndex(null)
@@ -1977,6 +2026,43 @@ function App(): React.JSX.Element {
                             {coverUploadBusy ? 'Subiendo y moderando...' : 'Seleccionar y moderar portada'}
                           </button>
                           <p className="helper">Límite documentado: 5 MiB. WORLD_COVER admite cualquier dimensión positiva. La moderación no modifica ni publica el mundo.</p>
+                        </div>
+                        <div className="proposal-editor item-image-upload-editor">
+                          <div className="world-browser-heading">
+                            <strong>IMÁGENES DE OBJETOS</strong>
+                            <span>ITEM_IMAGE + MODERACIÓN</span>
+                          </div>
+                          <p className="helper">Sube una imagen para una definición existente en initialGameState.itemTypes. El contrato documenta el destino ITEM_IMAGE y la ruta itemTypes[itemKey].imageUrl. Requiere PNG, JPG o WebP, mínimo 600 × 600 píxeles y máximo 5 MiB.</p>
+                          <label htmlFor="item-image-key">Objeto de itemTypes</label>
+                          <select
+                            id="item-image-key"
+                            value={selectedItemImageKey}
+                            onChange={(event) => setSelectedItemImageKey(event.target.value)}
+                            disabled={itemImageUploadBusy || !selectedWorldDraft || !isRecord(selectedWorldDraft.itemTypes)}
+                          >
+                            <option value="">Selecciona un objeto...</option>
+                            {selectedWorldDraft && isRecord(selectedWorldDraft.itemTypes) &&
+                              Object.keys(selectedWorldDraft.itemTypes).map((key) => (
+                                <option key={key} value={key}>{key}</option>
+                              ))}
+                          </select>
+                          {(() => {
+                            const item = selectedWorldDraft && isRecord(selectedWorldDraft.itemTypes) && selectedItemImageKey
+                              ? selectedWorldDraft.itemTypes[selectedItemImageKey]
+                              : null
+                            const imageUrl = isRecord(item) && typeof item.imageUrl === 'string' ? item.imageUrl : ''
+                            return imageUrl
+                              ? <img className="moderated-cover-preview" src={imageUrl} alt={'Imagen actual de ' + selectedItemImageKey} />
+                              : <p className="helper">El objeto seleccionado no tiene imageUrl asignada.</p>
+                          })()}
+                          <button className="secondary-button" onClick={() => void uploadSelectedItemImage()} disabled={
+                            itemImageUploadBusy || coverUploadBusy || worldReadBusy || worldValidationBusy ||
+                            !selectedWorldDraft || !selectedItemImageKey || !isRecord(selectedWorldDraft.itemTypes) ||
+                            !isRecord(selectedWorldDraft.itemTypes[selectedItemImageKey]) || !voyageConfigured
+                          }>
+                            {itemImageUploadBusy ? 'Subiendo y moderando...' : 'Seleccionar y moderar imagen del objeto'}
+                          </button>
+                          <p className="helper">La URL moderada se asigna al borrador local. Debes ejecutar la validación y el guardado normal para persistirla; no se publica el mundo.</p>
                         </div>
                         <div className="proposal-editor key-order-editor">
                           <div className="world-browser-heading">
