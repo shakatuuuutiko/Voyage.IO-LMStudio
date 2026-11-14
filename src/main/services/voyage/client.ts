@@ -161,9 +161,33 @@ export class VoyageCreatorClient {
     height: number,
     mimeType: 'image/png' | 'image/jpeg' | 'image/webp'
   ): Promise<{ imageUrl: string }> {
+    return this.uploadAndModerateImage(shortId, 'WORLD_COVER', bytes, width, height, mimeType)
+  }
+
+  async uploadAndModerateItemImage(
+    shortId: string,
+    bytes: Uint8Array,
+    width: number,
+    height: number,
+    mimeType: 'image/png' | 'image/jpeg' | 'image/webp'
+  ): Promise<{ imageUrl: string }> {
+    return this.uploadAndModerateImage(shortId, 'ITEM_IMAGE', bytes, width, height, mimeType)
+  }
+
+  private async uploadAndModerateImage(
+    shortId: string,
+    target: 'WORLD_COVER' | 'ITEM_IMAGE',
+    bytes: Uint8Array,
+    width: number,
+    height: number,
+    mimeType: 'image/png' | 'image/jpeg' | 'image/webp'
+  ): Promise<{ imageUrl: string }> {
     if (!shortId.trim() || shortId.length > 256) throw new Error('El identificador del mundo no es válido.')
     if (!(width > 0 && height > 0 && Number.isInteger(width) && Number.isInteger(height))) {
       throw new Error('Las dimensiones de la imagen no son válidas.')
+    }
+    if (target === 'ITEM_IMAGE' && (width < 600 || height < 600)) {
+      throw new Error('Las imágenes de objetos deben medir al menos 600 × 600 píxeles.')
     }
     if (bytes.byteLength < 1 || bytes.byteLength > 5 * 1024 * 1024) {
       throw new Error('La imagen debe ocupar entre 1 byte y 5 MiB.')
@@ -171,7 +195,7 @@ export class VoyageCreatorClient {
 
     const allowanceResponse = await this.request<unknown>('/uploads', {
       method: 'POST',
-      body: { height, mimeType, target: 'WORLD_COVER', width },
+      body: { height, mimeType, target, width },
       idempotencyKey: randomUUID()
     })
     const envelope = isRecord(allowanceResponse.data) ? allowanceResponse.data : null
@@ -225,7 +249,7 @@ export class VoyageCreatorClient {
         `/worlds/${encodeURIComponent(shortId.trim())}/uploads/${encodeURIComponent(allowance.uploadId)}/moderate`,
         {
           method: 'POST',
-          body: { target: 'WORLD_COVER' },
+          body: { target },
           idempotencyKey: randomUUID()
         }
       )
