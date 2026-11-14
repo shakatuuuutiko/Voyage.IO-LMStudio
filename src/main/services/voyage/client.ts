@@ -153,6 +153,16 @@ export class VoyageCreatorClient {
     }
   }
 
+  async listMods(): Promise<unknown> {
+    const response = await this.request<unknown>('/mods')
+    return response.data
+  }
+
+  async getUsage(): Promise<unknown> {
+    const response = await this.request<unknown>('/usage')
+    return response.data
+  }
+
   async listWorlds(): Promise<unknown> {
     // The list response is not fully described in OpenAPI; preserve it without guessing.
     const response = await this.request<unknown>('/worlds?page=0&type=world')
