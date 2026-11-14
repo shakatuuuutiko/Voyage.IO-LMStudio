@@ -224,7 +224,7 @@ export async function buildWorldIndex(worldId: string, gameState: Record<string,
   }
 
   const index: WorldIndex = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     worldId: safeWorldId(worldId),
     generatedAt: new Date().toISOString(),
     nodeCount: nodes.length,
