@@ -38,6 +38,7 @@ const api = {
     getUsage: () => ipcRenderer.invoke('voyage:get-usage'),
     uploadWorldCover: (shortId: string) => ipcRenderer.invoke('voyage:upload-world-cover', shortId),
     uploadItemImage: (payload: { shortId: string; itemKey: string }) => ipcRenderer.invoke('voyage:upload-item-image', payload),
+    uploadAssetImage: (payload: { shortId: string; target: 'AREA_IMAGE' | 'LOCATION_IMAGE' | 'NPC_PORTRAIT' | 'REGION_MAP_IMAGE' }) => ipcRenderer.invoke('voyage:upload-asset-image', payload),
     readWorld: (shortId: string) => ipcRenderer.invoke('voyage:read-world', shortId),
     listRevisions: (shortId: string) => ipcRenderer.invoke('voyage:list-revisions', shortId),
     readRevision: (payload: { shortId: string; revisionId: string }) => ipcRenderer.invoke('voyage:read-revision', payload),
