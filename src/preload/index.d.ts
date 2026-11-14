@@ -171,6 +171,7 @@ interface AppAPI {
     listMods: () => Promise<{ success: boolean; mods?: unknown; error?: string }>
     getUsage: () => Promise<{ success: boolean; usage?: unknown; error?: string }>
     uploadWorldCover: (shortId: string) => Promise<{ success: boolean; cancelled?: boolean; imageUrl?: string; width?: number; height?: number; bytes?: number; error?: string }>
+    uploadItemImage: (payload: { shortId: string; itemKey: string }) => Promise<{ success: boolean; cancelled?: boolean; itemKey?: string; imageUrl?: string; width?: number; height?: number; bytes?: number; error?: string }>
     readWorld: (shortId: string) => Promise<VoyageWorldReadResult>
     listRevisions: (shortId: string) => Promise<{ success: boolean; revisions?: VoyageRevisionSummary[]; error?: string }>
     readRevision: (payload: { shortId: string; revisionId: string }) => Promise<{ success: boolean; revision?: VoyageRevisionDownload; error?: string }>
