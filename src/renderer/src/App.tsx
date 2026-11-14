@@ -666,8 +666,12 @@ function App(): React.JSX.Element {
       setWorkspaceNotice('Revisión histórica restaurada en Voyage como nueva revisión activa. El estado se volvió a leer y el índice local se actualizó. El mundo NO fue publicado.')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo restaurar la revisión remota.'
+      // The outcome may be uncertain after a network failure; force a fresh read before any later save.
+      setSelectedWorldEtag(null)
+      setSelectedWorldDocument(null)
+      setSelectedWorldJson('')
       setWorkspaceNotice(
-        message + ' Si hubo un timeout o se perdió la conexión, vuelve a abrir el mundo para comprobar si Voyage llegó a aplicar la operación antes de intentarla otra vez.'
+        message + ' Vuelve a abrir el mundo para comprobar el estado actual antes de guardar o repetir la restauración.'
       )
       await window.api.workspace.recordIssue({
         worldId: selectedWorldId, source: 'application', severity: 'error',
