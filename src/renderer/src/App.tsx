@@ -286,7 +286,7 @@ function App(): React.JSX.Element {
   const [worldValidationBusy, setWorldValidationBusy] = useState(false)
   const [worldValidation, setWorldValidation] = useState<{ valid: boolean; errors: Array<{ code: string; message: string; path: string }>; warnings: Array<{ code: string; message: string; path: string }>; requestId: string } | null>(null)
   const [worldValidationError, setWorldValidationError] = useState('')
-  const [worldIndex, setWorldIndex] = useState<{ generatedAt: string; nodeCount: number; complete: boolean; rootKeys: string[]; relationshipCount: number } | null>(null)
+  const [worldIndex, setWorldIndex] = useState<{ generatedAt: string; nodeCount: number; complete: boolean; rootKeys: string[]; relationshipCount: number; schemaDiagnostics: Array<{ code: string; severity: 'warning'; path: string; message: string; evidence: string; confidence: 'high' }> } | null>(null)
   const [indexBusy, setIndexBusy] = useState(false)
   const [indexQuery, setIndexQuery] = useState('')
   const [indexResults, setIndexResults] = useState<Array<{ path: string; key: string; kind: string; preview: string; childCount: number }>>([])
@@ -1332,6 +1332,16 @@ function App(): React.JSX.Element {
                         </div>
                         <p className="helper">Índice estructural local del GameState. Conserva rutas JSON Pointer exactas y permite localizar contenido sin enviar todo el mundo a LM Studio.</p>
                         {worldIndex && <p className="helper">Actualizado: {formatDate(worldIndex.generatedAt)} · Secciones raíz: {worldIndex.rootKeys.length} · Relaciones exactas: {worldIndex.relationshipCount}</p>}
+                        {worldIndex && worldIndex.schemaDiagnostics.length > 0 && <div className="index-results">
+                          <strong>Integridad estructural · {worldIndex.schemaDiagnostics.length} advertencia(s)</strong>
+                          <p className="helper">Comprobaciones basadas en la estructura canónica documentada por Creator API Preview 1.3. Son diagnósticos locales; no modifican el GameState ni sustituyen la validación de Voyage.</p>
+                          {worldIndex.schemaDiagnostics.map((diagnostic, index) => <article className="index-result" key={diagnostic.code + diagnostic.path + index}>
+                            <strong>{diagnostic.code}</strong><code>{diagnostic.path}</code>
+                            <span>Confianza de la regla: alta · Advertencia</span>
+                            <p>{diagnostic.message}</p><p className="helper">Evidencia: {diagnostic.evidence}</p>
+                          </article>)}
+                        </div>}
+                        {worldIndex && worldIndex.schemaDiagnostics.length === 0 && <p className="helper">Integridad estructural: sin advertencias en las reglas canónicas comprobadas.</p>}
                         {workspaceNotice && <p className="helper" role="status">{workspaceNotice}</p>}
                         <div className="index-search-row">
                           <input value={indexQuery} onChange={(event) => setIndexQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void searchWorldKnowledge() }} placeholder="Buscar facciones, NPCs, habilidades, términos..." />
