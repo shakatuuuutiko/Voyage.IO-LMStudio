@@ -1899,7 +1899,8 @@ function App(): React.JSX.Element {
                               if (!Array.isArray(pathValue) || pathValue.some((part) => typeof part !== 'string')) return <p className="helper">Introduce una ruta JSON válida.</p>
                               const target = selectedWorldDraft ? readPath(selectedWorldDraft, pathValue) : { exists: false, value: undefined }
                               if (!target.exists || !isRecord(target.value)) return <p className="helper">La ruta no apunta a un objeto disponible en el borrador.</p>
-                              return <p className="helper">Claves actuales ({Object.keys(target.value).length}): {Object.keys(target.value).slice(0, 24).join(' · ')}{Object.keys(target.value).length > 24 ? ' · …' : ''}</p>
+                              const targetObject = target.value
+                              return <p className="helper">Claves actuales ({Object.keys(targetObject).length}): {Object.keys(targetObject).slice(0, 24).join(' · ')}{Object.keys(targetObject).length > 24 ? ' · …' : ''}</p>
                             } catch {
                               return <p className="helper">La ruta debe ser un array JSON, por ejemplo ["npcs","Guide"].</p>
                             }
