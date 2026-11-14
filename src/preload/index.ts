@@ -37,6 +37,7 @@ const api = {
     listMods: () => ipcRenderer.invoke('voyage:list-mods'),
     getUsage: () => ipcRenderer.invoke('voyage:get-usage'),
     uploadWorldCover: (shortId: string) => ipcRenderer.invoke('voyage:upload-world-cover', shortId),
+    uploadItemImage: (payload: { shortId: string; itemKey: string }) => ipcRenderer.invoke('voyage:upload-item-image', payload),
     readWorld: (shortId: string) => ipcRenderer.invoke('voyage:read-world', shortId),
     listRevisions: (shortId: string) => ipcRenderer.invoke('voyage:list-revisions', shortId),
     readRevision: (payload: { shortId: string; revisionId: string }) => ipcRenderer.invoke('voyage:read-revision', payload),
