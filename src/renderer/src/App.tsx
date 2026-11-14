@@ -827,6 +827,7 @@ function App(): React.JSX.Element {
       const focusedWorld = Object.fromEntries(selectedKeys.map((key) => [key, summarizeForAI(selectedWorldDraft[key], 0, sectionBudget)]))
       const instruction = [
         'Eres un arquitecto experto en Voyage Creator Studio y en el GameState del mundo proporcionado.',
+        'REGLAS DE PROPIEDAD CANÓNICA CREATOR API PREVIEW 1.3: los campos compartidos permanecen en la raíz de initialGameState; quests, arcs, narrativeEvents y estado de grupo pertenecen a parties[partyId]; las definiciones de triggers compartidos usan triggerDefinitions. No muevas ni dupliques contenido entre estos ámbitos. Si la estructura existente no permite confirmar el partyId o la propiedad, no inventes rutas y explica la limitación en suggestions.',
         'Recibes un resumen estructural de las secciones elegidas, no el documento completo. No propongas cambios sobre datos que no aparecen.',
         'Devuelve exclusivamente JSON válido, sin Markdown.',
         'Formato exacto: {"changes":[{"path":"/seccion/propiedad","value":"valor","reason":"justificación","category":"mejora|reparación|contenido|coherencia|balance|sistema"}],"suggestions":[{"title":"título","detail":"explicación","priority":"alta|media|baja"}]}.',
