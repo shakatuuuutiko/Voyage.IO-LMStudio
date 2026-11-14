@@ -307,6 +307,9 @@ function App(): React.JSX.Element {
   const [remoteRevisionPreview, setRemoteRevisionPreview] = useState<{ id: string; createdAt: string; gameState: Record<string, unknown> } | null>(null)
 
   const [issueReport, setIssueReport] = useState('')
+  const [orderPathInput, setOrderPathInput] = useState('["npcs"]')
+  const [orderKeysInput, setOrderKeysInput] = useState('')
+  const [orderBusy, setOrderBusy] = useState(false)
   const apiKeyInput = useRef<HTMLInputElement>(null)
   const proposalRequestInput = useRef<HTMLTextAreaElement>(null)
   const snapshotComparison = useMemo(
@@ -802,6 +805,78 @@ function App(): React.JSX.Element {
       setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo importar la revisión al borrador local.')
     } finally {
       setRemoteRevisionBusy(false)
+    }
+  }
+
+
+  async function reorderSelectedWorldObject(): Promise<void> {
+    if (!selectedWorldId || !selectedWorldDraft || !selectedWorldInitialGameState || orderBusy || worldReadBusy || worldValidationBusy) return
+    if (JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)) {
+      setWorkspaceNotice('Hay cambios locales pendientes. Guarda o descarta esos cambios antes de reordenar claves remotas.')
+      return
+    }
+    let pathValue: unknown
+    try { pathValue = JSON.parse(orderPathInput) }
+    catch { setWorkspaceNotice('La ruta debe ser un array JSON válido, por ejemplo ["npcs","Guide"].'); return }
+    if (!Array.isArray(pathValue) || pathValue.length < 1 || pathValue.length > 100 || pathValue.some((part) => typeof part !== 'string')) {
+      setWorkspaceNotice('La ruta debe ser un array JSON de entre 1 y 100 segmentos de texto.')
+      return
+    }
+    const pathSegments = pathValue as string[]
+    const target = readPath(selectedWorldDraft, pathSegments)
+    if (!target.exists || !isRecord(target.value)) {
+      setWorkspaceNotice('La ruta no apunta a un objeto JSON existente. No se admiten arrays ni valores escalares.')
+      return
+    }
+    const keys = orderKeysInput.split(/\r?\n/).map((key) => key.trim()).filter(Boolean)
+    if (new Set(keys).size !== keys.length || keys.some((key) => !Object.prototype.hasOwnProperty.call(target.value, key))) {
+      setWorkspaceNotice('Las claves deben ser únicas y existir en el objeto seleccionado.')
+      return
+    }
+    const currentKeys = Object.keys(target.value)
+    const previewKeys = [...keys, ...currentKeys.filter((key) => !keys.includes(key))]
+    if (JSON.stringify(currentKeys) === JSON.stringify(previewKeys)) {
+      setWorkspaceNotice('El orden solicitado ya coincide con el orden actual. No se envió ninguna solicitud.')
+      return
+    }
+    if (!window.confirm('Se cambiará únicamente el orden de las claves del objeto remoto en "' + selectedWorldTitle + '". No se reemplazarán ni editarán valores. Las claves omitidas conservarán su orden relativo y quedarán al final. Se usará el ETag más reciente de Voyage. ¿Continuar?')) return
+    setOrderBusy(true)
+    setWorkspaceNotice('Guardando el orden de claves en Voyage...')
+    try {
+      await createDraftCheckpoint('manual-checkpoint', 'Checkpoint previo al reordenamiento remoto')
+      const result = await window.api.voyage.reorderObjectKeys({ shortId: selectedWorldId, path: pathSegments, keys })
+      if (!result.success || !result.reordered) throw new Error(result.error || 'Voyage no confirmó el reordenamiento.')
+      if (!result.world || !isRecord(result.world.initialGameState)) {
+        setSelectedWorldEtag(null)
+        setWorldValidation(null)
+        setWorkspaceNotice('Voyage confirmó el reordenamiento, pero no se pudo verificar la lectura posterior. Vuelve a abrir el mundo antes de otra operación remota. ' + (result.refreshError || ''))
+        return
+      }
+      const refreshedDocument = JSON.parse(JSON.stringify(result.world)) as Record<string, unknown>
+      const refreshedState = JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>
+      setSelectedWorldDocument(refreshedDocument)
+      setSelectedWorldInitialGameState(refreshedState)
+      setSelectedWorldDraft(JSON.parse(JSON.stringify(refreshedState)) as Record<string, unknown>)
+      setSelectedWorldEtag(result.etag ?? null)
+      setWorldValidation(null)
+      setWorldValidationError('')
+      setProposalChanges([])
+      setSelectedProposalPaths([])
+      setProposalSuggestions([])
+      setProposalError('')
+      setSelectedWorldJson('')
+      const indexResult = await window.api.workspace.buildIndex({ worldId: selectedWorldId, gameState: refreshedState })
+      if (indexResult.success && indexResult.index) setWorldIndex(indexResult.index)
+      await createDraftCheckpoint('remote-saved', 'Orden de claves confirmado en Voyage', refreshedState)
+        .catch((error) => setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot posterior.'))
+      setWorkspaceNotice('Orden de claves confirmado y releído desde Voyage. Los valores no fueron reemplazados; no se publicó el mundo.')
+    } catch (error) {
+      setSelectedWorldEtag(null)
+      setWorldValidation(null)
+      const message = error instanceof Error ? error.message : 'No se pudo confirmar el reordenamiento.'
+      setWorkspaceNotice(message + ' El ETag local quedó invalidado: vuelve a abrir el mundo antes de reintentar.')
+    } finally {
+      setOrderBusy(false)
     }
   }
 
@@ -1806,6 +1881,35 @@ function App(): React.JSX.Element {
                             <p className="helper">Los cambios todavía no se guardan en Voyage. Al cerrar o cambiar de mundo, el borrador en memoria se pierde.</p>
                           </div>
                         )}
+
+                        <div className="proposal-editor key-order-editor">
+                          <div className="world-browser-heading">
+                            <strong>ORDEN DE CLAVES JSON</strong>
+                            <span>CAMBIO REMOTO</span>
+                          </div>
+                          <p className="helper">Reordena propiedades de un objeto del GameState sin reemplazar sus valores. La ruta empieza dentro de initialGameState. Introduce las claves que deben aparecer primero, una por línea; las omitidas conservan su orden relativo y quedan al final. Los arrays no se pueden reordenar con esta operación.</p>
+                          <label htmlFor="order-object-path">Ruta del objeto (array JSON)</label>
+                          <input id="order-object-path" value={orderPathInput} onChange={(event) => setOrderPathInput(event.target.value)} placeholder='["npcs","Guide"]' disabled={orderBusy} />
+                          <label htmlFor="order-object-keys">Claves que deben aparecer primero (una por línea)</label>
+                          <textarea id="order-object-keys" rows={5} value={orderKeysInput} onChange={(event) => setOrderKeysInput(event.target.value)} placeholder={'Guide\nMerchant\nBlacksmith'} disabled={orderBusy} />
+                          {(() => {
+                            try {
+                              const pathValue = JSON.parse(orderPathInput)
+                              if (!Array.isArray(pathValue) || pathValue.some((part) => typeof part !== 'string')) return <p className="helper">Introduce una ruta JSON válida.</p>
+                              const target = selectedWorldDraft ? readPath(selectedWorldDraft, pathValue) : { exists: false, value: undefined }
+                              if (!target.exists || !isRecord(target.value)) return <p className="helper">La ruta no apunta a un objeto disponible en el borrador.</p>
+                              return <p className="helper">Claves actuales ({Object.keys(target.value).length}): {Object.keys(target.value).slice(0, 24).join(' · ')}{Object.keys(target.value).length > 24 ? ' · …' : ''}</p>
+                            } catch {
+                              return <p className="helper">La ruta debe ser un array JSON, por ejemplo ["npcs","Guide"].</p>
+                            }
+                          })()}
+                          {selectedWorldDraft && selectedWorldInitialGameState && JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState) &&
+                            <p className="helper security-warning">Hay cambios locales pendientes. Debes guardarlos o descartarlos antes de usar el reordenamiento remoto.</p>}
+                          <button className="secondary-button" onClick={() => void reorderSelectedWorldObject()} disabled={orderBusy || worldReadBusy || worldValidationBusy || !selectedWorldDraft || JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)}>
+                            {orderBusy ? 'Reordenando en Voyage...' : 'Reordenar claves en Voyage'}
+                          </button>
+                          <p className="helper">Antes de la operación se guarda un checkpoint local. VoyAgent descarga un ETag nuevo, usa If-Match y vuelve a leer el documento. Si la respuesta queda incierta, invalida el ETag local para impedir reintentos con estado obsoleto.</p>
+                        </div>
                         <button className="secondary-button save-world-button" onClick={() => void saveSelectedWorld()} disabled={worldValidationBusy || worldReadBusy || !selectedWorldDraft || !selectedWorldEtag || !worldValidation?.valid}>
                           Guardar borrador remoto (requiere validación correcta)
                         </button>
