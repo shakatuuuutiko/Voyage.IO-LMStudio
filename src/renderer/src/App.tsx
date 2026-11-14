@@ -2140,6 +2140,49 @@ function App(): React.JSX.Element {
                           </button>
                           <p className="helper">La URL moderada se asigna al borrador local. Debes ejecutar la validación y el guardado normal para persistirla; no se publica el mundo.</p>
                         </div>
+                        <div className="proposal-editor item-image-upload-editor">
+                          <div className="world-browser-heading">
+                            <strong>OTRAS IMÁGENES DEL MUNDO</strong>
+                            <span>MODERACIÓN DE VOYAGE</span>
+                          </div>
+                          <p className="helper">Permite cargas AREA_IMAGE, LOCATION_IMAGE, NPC_PORTRAIT y REGION_MAP_IMAGE. El contrato no define una ruta universal del GameState para estos campos; por eso debes indicar el JSON Pointer exacto de un campo de imagen que ya exista y contenga texto o null. La aplicación no inventa ni crea propiedades.</p>
+                          <label htmlFor="asset-image-target">Destino de moderación</label>
+                          <select
+                            id="asset-image-target"
+                            value={assetImageTarget}
+                            onChange={(event) => setAssetImageTarget(event.target.value as typeof assetImageTarget)}
+                            disabled={assetImageUploadBusy}
+                          >
+                            <option value="AREA_IMAGE">AREA_IMAGE</option>
+                            <option value="LOCATION_IMAGE">LOCATION_IMAGE</option>
+                            <option value="NPC_PORTRAIT">NPC_PORTRAIT</option>
+                            <option value="REGION_MAP_IMAGE">REGION_MAP_IMAGE</option>
+                          </select>
+                          <label htmlFor="asset-image-path">JSON Pointer del campo de imagen (dentro de initialGameState)</label>
+                          <input
+                            id="asset-image-path"
+                            value={assetImagePathInput}
+                            onChange={(event) => setAssetImagePathInput(event.target.value)}
+                            placeholder="/ruta/exacta/al/campoDeImagen"
+                            disabled={assetImageUploadBusy}
+                          />
+                          <p className="helper">Valor actual en el borrador: {(() => {
+                            try {
+                              if (!selectedWorldDraft || !assetImagePathInput.trim()) return '—'
+                              const current = readPath(selectedWorldDraft, parseJsonPointer(assetImagePathInput.trim()))
+                              return current.exists ? JSON.stringify(current.value) : 'La ruta no existe'
+                            } catch {
+                              return 'Ruta JSON Pointer no válida'
+                            }
+                          })()}</p>
+                          <button className="secondary-button" onClick={() => void uploadSelectedAssetImage()} disabled={
+                            assetImageUploadBusy || itemImageUploadBusy || coverUploadBusy || worldReadBusy || worldValidationBusy ||
+                            !selectedWorldDraft || !assetImagePathInput.trim() || !voyageConfigured
+                          }>
+                            {assetImageUploadBusy ? 'Subiendo y moderando...' : 'Seleccionar y moderar imagen'}
+                          </button>
+                          <p className="helper">PNG, JPG o WebP · mínimo 600 × 600 · máximo 5 MiB. La URL moderada se asigna solo al borrador local; valida y guarda manualmente para persistirla. No publica el mundo.</p>
+                        </div>
                         <div className="proposal-editor key-order-editor">
                           <div className="world-browser-heading">
                             <strong>ORDEN DE CLAVES JSON</strong>
