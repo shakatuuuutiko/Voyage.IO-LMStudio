@@ -1134,3 +1134,17 @@ html, body, #root, .app-shell, .workspace {
   border-color: #7567b0;
   color: #e2dcff;
 }
+
+.cover-upload-editor {
+  border-color: #5d6d83;
+  background: #151c27;
+}
+.moderated-cover-preview {
+  display: block;
+  width: min(100%, 420px);
+  max-height: 220px;
+  object-fit: contain;
+  border: 1px solid #3b4658;
+  border-radius: 7px;
+  background: #0e1118;
+}
