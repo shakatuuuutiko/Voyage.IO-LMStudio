@@ -874,6 +874,10 @@ function App(): React.JSX.Element {
 
   async function reorderSelectedWorldObject(): Promise<void> {
     if (!selectedWorldId || !selectedWorldDraft || !selectedWorldInitialGameState || orderBusy || worldReadBusy || worldValidationBusy) return
+    if (moderatedCoverUrl) {
+      setWorkspaceNotice('Hay una portada moderada pendiente de guardar en el documento local. Guarda o descarta esa portada antes de reordenar claves remotas.')
+      return
+    }
     if (JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)) {
       setWorkspaceNotice('Hay cambios locales pendientes. Guarda o descarta esos cambios antes de reordenar claves remotas.')
       return
@@ -976,6 +980,7 @@ function App(): React.JSX.Element {
         const refreshedDocument = JSON.parse(JSON.stringify(result.world)) as Record<string, unknown>
         const refreshedState = JSON.parse(JSON.stringify(result.world.initialGameState)) as Record<string, unknown>
         setSelectedWorldDocument(refreshedDocument)
+        setModeratedCoverUrl('')
         setSelectedWorldInitialGameState(refreshedState)
         setSelectedWorldDraft(JSON.parse(JSON.stringify(refreshedState)) as Record<string, unknown>)
         await createDraftCheckpoint('remote-saved', 'Estado confirmado tras guardado remoto', refreshedState).catch((error) => setWorkspaceNotice(error instanceof Error ? error.message : 'No se pudo guardar el snapshot del estado remoto.'))
@@ -1997,7 +2002,7 @@ function App(): React.JSX.Element {
                           })()}
                           {selectedWorldDraft && selectedWorldInitialGameState && JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState) &&
                             <p className="helper security-warning">Hay cambios locales pendientes. Debes guardarlos o descartarlos antes de usar el reordenamiento remoto.</p>}
-                          <button className="secondary-button" onClick={() => void reorderSelectedWorldObject()} disabled={orderBusy || worldReadBusy || worldValidationBusy || !selectedWorldDraft || JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)}>
+                          <button className="secondary-button" onClick={() => void reorderSelectedWorldObject()} disabled={orderBusy || worldReadBusy || worldValidationBusy || Boolean(moderatedCoverUrl) || !selectedWorldDraft || JSON.stringify(selectedWorldDraft) !== JSON.stringify(selectedWorldInitialGameState)}>
                             {orderBusy ? 'Reordenando en Voyage...' : 'Reordenar claves en Voyage'}
                           </button>
                           <p className="helper">Antes de la operación se guarda un checkpoint local. VoyAgent descarga un ETag nuevo, usa If-Match y vuelve a leer el documento. Si la respuesta queda incierta, invalida el ETag local para impedir reintentos con estado obsoleto.</p>
