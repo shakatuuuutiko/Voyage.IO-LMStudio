@@ -1103,3 +1103,34 @@ html, body, #root, .app-shell, .workspace {
   border-color: #424957;
   color: #8790a0;
 }
+
+.key-order-editor {
+  border-color: #625b85;
+  background: #171824;
+}
+.key-order-editor input,
+.key-order-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #363c4b;
+  border-radius: 6px;
+  color: #e8eaf0;
+  background: #11141b;
+  font: inherit;
+  font-size: 11px;
+}
+.key-order-editor textarea {
+  resize: vertical;
+  font-family: Consolas, monospace;
+  line-height: 1.5;
+}
+.key-order-editor input:focus,
+.key-order-editor textarea:focus {
+  border-color: #7668e8;
+  outline: none;
+}
+.key-order-editor .secondary-button {
+  border-color: #7567b0;
+  color: #e2dcff;
+}
