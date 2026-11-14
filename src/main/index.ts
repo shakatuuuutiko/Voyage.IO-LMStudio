@@ -2,6 +2,9 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { registerVoyageIpcHandlers } from './ipc/voyage-handlers'
+import { registerLocalWorkspaceHandlers } from './ipc/local-workspace-handlers'
+import { migrateUserDataDirectory } from './services/app-data-migration'
 
 const LM_STUDIO_URL = 'http://127.0.0.1:1234'
 
@@ -31,11 +34,22 @@ async function lmRequest(path: string, body?: object): Promise<unknown> {
       signal: controller.signal
     })
 
-    const data = await response.json()
+    const responseText = await response.text()
+    let data: unknown = null
+    if (responseText) {
+      try {
+        data = JSON.parse(responseText) as unknown
+      } catch {
+        data = responseText
+      }
+    }
 
     if (!response.ok) {
-      const error = data as { error?: { message?: string } }
-      throw new Error(error.error?.message || `LM Studio respondió HTTP ${response.status}`)
+      const payload = data && typeof data === 'object' ? data as { error?: string | { message?: string }; message?: string; detail?: string } : null
+      const errorMessage = typeof payload?.error === 'string'
+        ? payload.error
+        : payload?.error?.message || payload?.message || payload?.detail || (typeof data === 'string' ? data.slice(0, 1200) : '')
+      throw new Error(`LM Studio HTTP ${response.status}: ${errorMessage || 'La solicitud fue rechazada sin detalles.'}`)
     }
 
     return data
@@ -72,7 +86,7 @@ ipcMain.handle('lmstudio:list-models', async () => {
 
 ipcMain.handle(
   'lmstudio:chat',
-  async (_event, payload: { model: string; prompt: string; maxTokens?: number }) => {
+  async (_event, payload: { model: string; prompt: string; maxTokens?: number; jsonMode?: boolean }) => {
     try {
       if (!payload || typeof payload.model !== 'string' || !payload.model.trim()) {
         throw new Error('Selecciona un modelo.')
@@ -82,15 +96,38 @@ ipcMain.handle(
         throw new Error('Escribe una instrucción.')
       }
 
-      const maxTokens = Math.min(8192, Math.max(256, Number(payload.maxTokens) || 4096))
+      const maxTokens = Math.min(65536, Math.max(256, Number(payload.maxTokens) || 4096))
 
-      const result = (await lmRequest('/v1/chat/completions', {
+      const requestBody = {
         model: payload.model,
         messages: [{ role: 'user', content: payload.prompt }],
         max_tokens: maxTokens,
-        temperature: 0.7,
+        temperature: payload.jsonMode ? 0.2 : 0.7,
+        ...(payload.jsonMode ? { response_format: { type: 'json_object' } } : {}),
         stream: false
-      })) as ChatResponse
+      }
+
+      let result: ChatResponse
+      try {
+        result = (await lmRequest('/v1/chat/completions', requestBody)) as ChatResponse
+      } catch (error) {
+        const message = error instanceof Error ? error.message : ''
+        // Algunos modelos/servidores compatibles con OpenAI no admiten response_format.
+        // Reintentar una sola vez sin modo JSON evita que esa limitación bloquee la generación.
+        const lowerMessage = message.toLowerCase()
+        const unsupportedJsonMode = ['response_format', 'json_object', 'json mode', 'unsupported parameter', 'unrecognized request argument']
+          .some((term) => lowerMessage.includes(term))
+        if (!payload.jsonMode || !message.includes('HTTP 400') || !unsupportedJsonMode) throw error
+
+        const compatibleBody = {
+          model: requestBody.model,
+          messages: requestBody.messages,
+          max_tokens: requestBody.max_tokens,
+          temperature: requestBody.temperature,
+          stream: requestBody.stream
+        }
+        result = (await lmRequest('/v1/chat/completions', compatibleBody)) as ChatResponse
+      }
 
       const message = result.choices?.[0]?.message
       const content = typeof message?.content === 'string' ? message.content.trim() : ''
@@ -123,6 +160,8 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
       sandbox: false
     }
   })
@@ -141,7 +180,10 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await migrateUserDataDirectory()
+  registerVoyageIpcHandlers()
+  registerLocalWorkspaceHandlers()
   electronApp.setAppUserModelId('com.voyage.aicompanion')
 
   app.on('browser-window-created', (_, window) => {
